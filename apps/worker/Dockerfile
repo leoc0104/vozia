@@ -14,6 +14,8 @@ WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml turbo.json tsconfig.base.json ./
 COPY packages ./packages
 COPY apps/worker ./apps/worker
+# The lockfile knows every workspace project; keep the web manifest so the install stays frozen.
+COPY apps/web/package.json ./apps/web/package.json
 
 RUN pnpm install --frozen-lockfile --filter @vozia/worker... \
  && pnpm --filter @vozia/worker... run build \
