@@ -31,5 +31,5 @@ export function createFetchStub(responder: Responder) {
   return { fetchImpl: fetchImpl as unknown as typeof fetch, requests }
 }
 
-export const jsonResponse = (body: unknown, status = 200) =>
+export const jsonResponse = (body: unknown, status = 200): Response =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } })

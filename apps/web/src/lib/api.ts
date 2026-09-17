@@ -2,7 +2,7 @@ import { BUCKETS, type DubRow, type DubSegmentRow, type VideoRow } from '@vozia/
 import { isInsufficientMinutesError, type CreateDubInput, type SourceType } from '@vozia/shared'
 import { supabase } from './supabase'
 
-export type DubSummary = Pick<DubRow, 'id' | 'target_language' | 'status' | 'progress' | 'created_at'>
+export type DubSummary = Pick<DubRow, 'id' | 'target_language' | 'status' | 'progress' | 'created_at' | 'output_path'>
 
 export interface VideoWithDubs extends VideoRow {
   dubs: DubSummary[]
@@ -38,7 +38,7 @@ function unwrap<T>({ data, error }: Result<T>): T {
   return data as T
 }
 
-const DUB_SUMMARY = 'id, target_language, status, progress, created_at'
+const DUB_SUMMARY = 'id, target_language, status, progress, created_at, output_path'
 const SIGNED_URL_TTL = 60 * 60
 
 async function currentUserId(): Promise<string> {

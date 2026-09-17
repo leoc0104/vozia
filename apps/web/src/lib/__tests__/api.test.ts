@@ -21,7 +21,7 @@ describe('api', () => {
     fake.current!.setResponder(() => ({ data: [{ id: 'v1', dubs: [{ id: 'd1', status: 'queued' }] }], error: null }))
     const videos = await listVideos()
     expect(videos[0]!.dubs[0]!.id).toBe('d1')
-    expect(fake.current!.calls[0]).toMatchObject({ table: 'videos', op: 'select', columns: '*, dubs(id, target_language, status, progress, created_at)' })
+    expect(fake.current!.calls[0]).toMatchObject({ table: 'videos', op: 'select', columns: '*, dubs(id, target_language, status, progress, created_at, output_path)' })
   })
 
   it('creates videos and dubs for the signed-in user', async () => {

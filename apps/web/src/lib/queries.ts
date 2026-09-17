@@ -18,7 +18,7 @@ export function useVideos() {
 }
 
 export function useVideo(id: string) {
-  return useQuery({ queryKey: qk.video(id), queryFn: () => getVideo(id) })
+  return useQuery({ queryKey: qk.video(id), queryFn: () => getVideo(id), enabled: id !== '' })
 }
 
 /** Realtime keeps this fresh; polling is only a safety net while the dub is in progress. */
