@@ -42,12 +42,12 @@ describe('InMemoryDubRepository', () => {
     expect(repo.history.map((h) => h.status)).toEqual(['ingesting', 'completed'])
   })
 
-  it('marks failures and resets to queued', async () => {
+  it('marks failures and clears them before a re-run', async () => {
     const repo = new InMemoryDubRepository()
     repo.seed(makeJob({ dub: { status: 'muxing', progress: 90 } }))
     await repo.markFailed(DUB_ID, 'muxing', 'boom')
     expect(repo.dubs.get(DUB_ID)).toMatchObject({ status: 'failed', failed_stage: 'muxing', error_message: 'boom' })
-    await repo.resetToQueued(DUB_ID)
-    expect(repo.dubs.get(DUB_ID)).toMatchObject({ status: 'queued', progress: 0, error_message: null })
+    await repo.prepareRerun(DUB_ID)
+    expect(repo.dubs.get(DUB_ID)).toMatchObject({ status: 'failed', progress: 0, error_message: null, failed_stage: null })
   })
 })

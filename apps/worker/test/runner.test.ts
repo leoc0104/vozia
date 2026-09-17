@@ -96,7 +96,7 @@ describe('WorkerRunner.handleMessage', () => {
     const second = (await queue.read(60))!
     expect(second.readCount).toBe(2)
     expect(await runner.handleMessage(second)).toBe('completed')
-    expect(repo.history.map((h) => h.status)).toEqual(['queued', 'ingesting', 'dubbing', 'completed'])
+    expect(repo.history.map((h) => h.status)).toEqual(['ingesting', 'dubbing', 'completed'])
 
     repo.dubs.get(DUB_ID)!.status = 'dubbing'
     const crashId = queue.enqueue({ dub_id: DUB_ID })

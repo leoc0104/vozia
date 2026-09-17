@@ -56,6 +56,7 @@ for t in "$ROOT"/supabase/tests/[1-9]*.sql; do
 done
 
 if [[ "$WITH_WORKER" -eq 1 && -f "$ROOT/apps/worker/package.json" ]]; then
+  pnpm --filter "./packages/**" build >/dev/null
   VOZIA_TEST_DATABASE_URL="$DATABASE_URL" pnpm --filter @vozia/worker test:integration
 fi
 

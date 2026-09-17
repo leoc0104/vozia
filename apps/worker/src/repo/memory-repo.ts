@@ -81,13 +81,11 @@ export class InMemoryDubRepository implements DubRepository {
     this.history.push({ dubId, status: 'completed', progress: 100 })
   }
 
-  async resetToQueued(dubId: string): Promise<void> {
+  async prepareRerun(dubId: string): Promise<void> {
     const dub = this.dub(dubId)
-    dub.status = 'queued'
     dub.progress = 0
     dub.failed_stage = null
     dub.error_message = null
-    this.history.push({ dubId, status: 'queued', progress: 0 })
   }
 
   async replaceSegments(dubId: string, segments: (TranscriptSegment | TranslatedSegment)[]): Promise<void> {

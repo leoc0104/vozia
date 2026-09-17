@@ -31,7 +31,8 @@ export interface DubRepository {
   markFailed(dubId: string, stage: DubStatus | null, message: string): Promise<void>
   /** Sets completed/100%, stores output paths and charges the minutes. */
   markCompleted(dubId: string, input: MarkCompletedInput): Promise<void>
-  resetToQueued(dubId: string): Promise<void>
+  /** Clears a previous attempt's error fields before an interrupted dub is re-run (status is left alone). */
+  prepareRerun(dubId: string): Promise<void>
   replaceSegments(dubId: string, segments: (TranscriptSegment | TranslatedSegment)[]): Promise<void>
   updateVideoAfterIngest(videoId: string, patch: VideoIngestPatch): Promise<void>
 }

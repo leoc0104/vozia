@@ -102,7 +102,7 @@ export class WorkerRunner {
     }
     if (job.dub.status !== 'queued') {
       log.warn({ status: job.dub.status, readCount: message.readCount }, 're-running dub after an interrupted attempt')
-      await repo.resetToQueued(dubId)
+      await repo.prepareRerun(dubId)
       job.dub.status = 'queued'
     }
 
