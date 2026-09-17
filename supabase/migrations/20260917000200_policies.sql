@@ -150,3 +150,10 @@ $$;
 
 revoke all on function public.retry_dub(uuid) from public;
 grant execute on function public.retry_dub(uuid) to authenticated;
+
+-- Supabase's default ACL grants authenticated every privilege on new tables; narrow it so
+-- that the policies above are the whole story (a direct update is a permission error).
+revoke all on public.profiles, public.videos, public.dubs, public.dub_segments from anon;
+revoke insert, delete on public.profiles from authenticated;
+revoke update on public.dubs from authenticated;
+revoke insert, update, delete on public.dub_segments from authenticated;
