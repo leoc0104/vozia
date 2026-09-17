@@ -2,9 +2,10 @@ import type { DubStatus, Pipeline, SourceType, VoiceMode } from '@vozia/shared'
 
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[]
 
+// Row types are type aliases (not interfaces) so they satisfy supabase-js's Record<string, unknown> constraint.
 type Timestamps = { created_at: string; updated_at: string }
 
-export interface ProfileRow extends Timestamps {
+export type ProfileRow = Timestamps & {
   id: string
   display_name: string | null
   avatar_url: string | null
@@ -12,7 +13,7 @@ export interface ProfileRow extends Timestamps {
   minutes_used: number
 }
 
-export interface VideoRow extends Timestamps {
+export type VideoRow = Timestamps & {
   id: string
   owner_id: string
   title: string
@@ -23,7 +24,7 @@ export interface VideoRow extends Timestamps {
   thumbnail_path: string | null
 }
 
-export interface DubRow extends Timestamps {
+export type DubRow = Timestamps & {
   id: string
   video_id: string
   owner_id: string
@@ -47,7 +48,7 @@ export interface DubRow extends Timestamps {
   completed_at: string | null
 }
 
-export interface DubSegmentRow {
+export type DubSegmentRow = {
   id: number
   dub_id: string
   idx: number

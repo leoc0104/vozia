@@ -1,5 +1,6 @@
 import { Link, Outlet, useNavigate } from '@tanstack/react-router'
 import { LogOut, Plus } from 'lucide-react'
+import { useRealtimeSync } from '../lib/realtime'
 import { useAuthStore } from '../stores/auth-store'
 import { Logo } from './Logo'
 import { Badge, Button } from './ui'
@@ -9,6 +10,7 @@ export function AppShell() {
   const profile = useAuthStore((s) => s.profile)
   const signOut = useAuthStore((s) => s.signOut)
   const minutesLeft = profile ? Math.max(0, profile.minutes_quota - profile.minutes_used) : null
+  useRealtimeSync()
 
   async function onSignOut() {
     await signOut()
