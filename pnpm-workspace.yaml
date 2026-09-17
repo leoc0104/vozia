@@ -1,0 +1,7 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+# Approve native/build-script packages so pnpm builds them automatically.
+allowBuilds:
+  esbuild: true
