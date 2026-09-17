@@ -5,8 +5,14 @@ import type { VoziaClient } from '@vozia/db'
 import { SupabaseObjectStorage } from '../src/drivers/supabase-storage.js'
 import { tempDir } from './helpers/factories.js'
 
-function stubClient(overrides: Partial<Record<'createSignedUrl' | 'upload' | 'remove', unknown>> = {}) {
-  const bucketApi = {
+type BucketApi = {
+  createSignedUrl: ReturnType<typeof vi.fn>
+  upload: ReturnType<typeof vi.fn>
+  remove: ReturnType<typeof vi.fn>
+}
+
+function stubClient(overrides: Partial<BucketApi> = {}) {
+  const bucketApi: BucketApi = {
     createSignedUrl: vi.fn(async () => ({ data: { signedUrl: 'https://signed.example/x' }, error: null })),
     upload: vi.fn(async () => ({ data: { path: 'x' }, error: null })),
     remove: vi.fn(async () => ({ data: [], error: null })),

@@ -39,8 +39,8 @@ const segments: TranslatedSegment[] = [
 
 function stubClient() {
   return {
-    addVoice: vi.fn(async () => ({ voiceId: 'clone-1' })),
-    deleteVoice: vi.fn(async () => undefined),
+    addVoice: vi.fn(async (_name: string, _sampleFilePath: string, _signal?: AbortSignal) => ({ voiceId: 'clone-1' })),
+    deleteVoice: vi.fn(async (_voiceId: string, _signal?: AbortSignal) => undefined),
     textToSpeech: vi.fn(async (_voice: string, _text: string, _opts: unknown, dest: string) => {
       await writeFile(dest, 'mp3')
     }),

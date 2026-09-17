@@ -7,11 +7,12 @@ import { FakeObjectStorage } from '../src/drivers/fake/index.js'
 import { silentLogger } from '../src/logger.js'
 import { DUB_ID, OWNER_ID, VIDEO_ID, makeJob, tempDir } from './helpers/factories.js'
 import type { DubJob } from '../src/pipeline/contracts.js'
+import type { CreateDubbingInput } from '../src/drivers/elevenlabs/client.js'
 
 function stubClient(statuses: Array<{ status: 'dubbing' | 'dubbed' | 'failed'; error?: string }>) {
   const queue = [...statuses]
   return {
-    createDubbing: vi.fn(async () => ({ dubbingId: 'd1', expectedDurationSec: 60 })),
+    createDubbing: vi.fn(async (_input: CreateDubbingInput, _signal?: AbortSignal) => ({ dubbingId: 'd1', expectedDurationSec: 60 })),
     getDubbing: vi.fn(async () => {
       const next = queue.length > 1 ? queue.shift()! : queue[0]!
       return { status: next.status, error: next.error ?? null, durationSec: 61.4, sourceLang: 'en', targetLanguages: ['pt'] }
@@ -66,7 +67,7 @@ describe('ElevenLabsDubbingPipeline', () => {
     const { storage, client, pipeline, ctx } = await setup(job)
     await storage.put('sources', `${OWNER_ID}/${VIDEO_ID}/original.webm`, 'webm bytes')
     await pipeline.run(job, ctx)
-    const input = client.createDubbing.mock.calls[0]![0] as { filePath?: string; sourceUrl?: string }
+    const input = client.createDubbing.mock.calls[0]![0]
     expect(input.filePath).toMatch(/source\.webm$/)
     expect(input.sourceUrl).toBeUndefined()
   })
