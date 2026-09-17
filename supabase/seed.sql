@@ -1,0 +1,1 @@
+-- No seed data: every account starts with the free minutes defined in profiles.minutes_quota.
