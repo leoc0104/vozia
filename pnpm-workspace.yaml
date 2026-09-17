@@ -5,3 +5,11 @@ packages:
 # Approve native/build-script packages so pnpm builds them automatically.
 allowBuilds:
   esbuild: true
+
+minimumReleaseAgeExclude:
+  - '@tanstack/query-core@5.103.1'
+  - '@tanstack/react-query@5.103.1'
+  - '@tanstack/react-router@1.170.38'
+  - '@tanstack/router-core@1.171.32'
+  - jsdom@30.1.0
+  - lucide-react@1.47.0
