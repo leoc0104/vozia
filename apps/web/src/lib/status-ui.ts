@@ -29,3 +29,17 @@ export function statusLabel(status: DubStatus): string {
 export function stepperStages(pipeline: Pipeline): DubStatus[] {
   return STAGE_ORDER[pipeline].filter((s) => s !== 'queued' && s !== 'completed')
 }
+
+export type StepState = 'done' | 'current' | 'pending' | 'failed'
+
+/** Which stepper state each stage is in for a dub's current status. */
+export function stepStates(pipeline: Pipeline, status: DubStatus, failedStage: string | null): { stage: DubStatus; state: StepState }[] {
+  const stages = stepperStages(pipeline)
+  if (status === 'completed') return stages.map((stage) => ({ stage, state: 'done' as const }))
+  const anchor = status === 'failed' ? (failedStage as DubStatus | null) : status
+  const index = anchor ? stages.indexOf(anchor) : -1
+  return stages.map((stage, i) => ({
+    stage,
+    state: i < index ? 'done' : i === index ? (status === 'failed' ? 'failed' : 'current') : 'pending',
+  }))
+}
