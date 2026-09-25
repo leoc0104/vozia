@@ -157,5 +157,5 @@ enqueue trigger and the storage policies. CI (`.github/workflows/ci.yml`) runs b
 ```bash
 gh repo create leoc0104/vozia --private --source=. --remote=origin --push
 # or: create it in the GitHub UI, then
-git remote add origin git@github.com:leoc0104/vozia.git && git push -u origin main mvp
+git remote add origin git@github.com:leoc0104/vozia.git && git push -u origin main feat/mvp
 ```
