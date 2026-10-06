@@ -42,6 +42,19 @@ describe('LibraryPage', () => {
     expect(screen.getByRole('radiogroup', { name: 'Theme' })).toBeInTheDocument()
   })
 
+  it('keeps long titles from widening the page on phones', async () => {
+    const title = 'Onboarding tutorial for new customers who want a really long title to check truncation'
+    api.listVideos.mockResolvedValue([
+      { id: 'v3', title, duration_seconds: 192, created_at: '2026-09-17T00:00:00Z', thumbnail_path: null, dubs: [] },
+    ])
+    await renderApp('/app', fake)
+    const heading = await screen.findByRole('heading', { name: title })
+    expect(heading).toHaveClass('truncate')
+    expect(heading).toHaveAttribute('title', title)
+    // An implicit grid track grows to its widest content; grid-cols-1 caps it at the container width.
+    expect(heading.closest('.grid')).toHaveClass('grid-cols-1')
+  })
+
   it('shows an empty state with a call to action', async () => {
     api.listVideos.mockResolvedValue([])
     await renderApp('/app', fake)

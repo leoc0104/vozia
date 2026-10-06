@@ -8,8 +8,8 @@ import { Badge, Card, ProgressBar } from './ui'
 
 export function DubCard({ dub }: { dub: DubSummary }) {
   return (
-    <Link to="/app/dubs/$dubId" params={{ dubId: dub.id }} className={cx('block rounded-lg', focusRing)}>
-      <Card className="p-4 transition-shadow hover:shadow-md">
+    <Link to="/app/dubs/$dubId" params={{ dubId: dub.id }} className={cx('block h-full min-w-0 rounded-lg', focusRing)}>
+      <Card className="h-full p-4 transition-shadow hover:shadow-md">
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <h3 className="truncate text-sm font-semibold text-gray-900 dark:text-gray-50">{languageLabel(dub.target_language)}</h3>

@@ -35,7 +35,7 @@ export function LibraryPage() {
           />
         </div>
       ) : (
-        <div className="mt-6 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-6 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {videos.data.map((video) => (
             <VideoCard
               key={video.id}

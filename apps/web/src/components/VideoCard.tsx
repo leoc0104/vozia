@@ -9,8 +9,8 @@ import { Badge, Card } from './ui'
 
 export function VideoCard({ video, thumbnailUrl }: { video: VideoWithDubs; thumbnailUrl?: string }) {
   return (
-    <Link to="/app/videos/$videoId" params={{ videoId: video.id }} className={cx('block rounded-lg', focusRing)}>
-      <Card className="overflow-hidden p-0 transition-shadow hover:shadow-md">
+    <Link to="/app/videos/$videoId" params={{ videoId: video.id }} className={cx('block h-full min-w-0 rounded-lg', focusRing)}>
+      <Card className="h-full overflow-hidden p-0 transition-shadow hover:shadow-md">
         <div className="aspect-video bg-gray-100 dark:bg-gray-900">
           {thumbnailUrl ? (
             <img src={thumbnailUrl} alt="" className="size-full object-cover" />

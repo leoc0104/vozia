@@ -97,7 +97,7 @@ export function VideoDetailPage() {
             <EmptyState title="No dubs for this video yet" />
           </div>
         ) : (
-          <div className="mt-3 grid gap-4 sm:grid-cols-2">
+          <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
             {[...v.dubs]
               .sort((a, b) => b.created_at.localeCompare(a.created_at))
               .map((dub) => (
