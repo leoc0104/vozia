@@ -1,5 +1,5 @@
 import { LANGUAGES } from '@vozia/shared'
-import { Select } from './ui'
+import { SelectNative } from './ui-next'
 
 export function LanguageSelect({
   id,
@@ -13,13 +13,13 @@ export function LanguageSelect({
   allowAuto?: boolean
 }) {
   return (
-    <Select id={id} value={value ?? ''} onChange={(e) => onChange(e.target.value === '' ? null : e.target.value)}>
+    <SelectNative id={id} value={value ?? ''} onChange={(e) => onChange(e.target.value === '' ? null : e.target.value)}>
       {allowAuto ? <option value="">Auto-detect</option> : null}
       {LANGUAGES.map((language) => (
         <option key={language.code} value={language.code}>
           {language.label}
         </option>
       ))}
-    </Select>
+    </SelectNative>
   )
 }

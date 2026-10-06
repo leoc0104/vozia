@@ -1,11 +1,14 @@
-import { STOCK_VOICES, type VoiceMode } from '@vozia/shared'
-import { cn } from '../lib/cn'
-import { Field, Select } from './ui'
+import { STOCK_VOICES, VOICE_MODES, type VoiceMode } from '@vozia/shared'
+import { Field, RadioCardGroup, RadioCardIndicator, RadioCardItem, SelectNative } from './ui-next'
 
 const options: { value: VoiceMode; title: string; body: string }[] = [
   { value: 'clone', title: 'Keep my voice', body: 'Clones the speaker from the original audio.' },
   { value: 'stock', title: 'Stock voice', body: 'Pick a curated professional voice.' },
 ]
+
+function isVoiceMode(value: string): value is VoiceMode {
+  return (VOICE_MODES as readonly string[]).includes(value)
+}
 
 export function VoiceModePicker({
   voiceMode,
@@ -20,33 +23,41 @@ export function VoiceModePicker({
 }) {
   return (
     <div className="space-y-3">
-      <div role="radiogroup" aria-label="Voice" className="grid gap-3 sm:grid-cols-2">
+      <RadioCardGroup
+        aria-label="Voice"
+        value={voiceMode}
+        onValueChange={(value) => {
+          if (!isVoiceMode(value)) return
+          onChange({ voiceMode: value, stockVoiceId: value === 'stock' ? (stockVoiceId ?? STOCK_VOICES[0]!.id) : null })
+        }}
+        className="grid-cols-1 gap-3 sm:grid-cols-2"
+      >
         {options.map((option) => (
-          <button
-            key={option.value}
-            type="button"
-            role="radio"
-            aria-checked={voiceMode === option.value}
-            onClick={() => onChange({ voiceMode: option.value, stockVoiceId: option.value === 'stock' ? (stockVoiceId ?? STOCK_VOICES[0]!.id) : null })}
-            className={cn(
-              'rounded-lg border p-4 text-left transition-colors',
-              voiceMode === option.value ? 'border-brand-500 bg-brand-50 ring-1 ring-brand-500' : 'border-slate-200 bg-white hover:border-slate-300',
-            )}
-          >
-            <span className="block text-sm font-semibold text-slate-900">{option.title}</span>
-            <span className="mt-1 block text-xs text-slate-600">{option.body}</span>
-          </button>
+          <RadioCardItem key={option.value} value={option.value}>
+            <div className="flex items-start gap-3">
+              <RadioCardIndicator className="mt-0.5" />
+              <div>
+                <span className="block text-sm font-semibold text-gray-900 dark:text-gray-50">{option.title}</span>
+                <span className="mt-1 block text-xs text-gray-600 dark:text-gray-400">{option.body}</span>
+              </div>
+            </div>
+          </RadioCardItem>
         ))}
-      </div>
+      </RadioCardGroup>
       {voiceMode === 'stock' ? (
         <Field label="Stock voice" htmlFor="stock-voice" error={error}>
-          <Select id="stock-voice" value={stockVoiceId ?? ''} onChange={(e) => onChange({ voiceMode: 'stock', stockVoiceId: e.target.value })}>
+          <SelectNative
+            id="stock-voice"
+            value={stockVoiceId ?? ''}
+            hasError={Boolean(error)}
+            onChange={(e) => onChange({ voiceMode: 'stock', stockVoiceId: e.target.value })}
+          >
             {STOCK_VOICES.map((voice) => (
               <option key={voice.id} value={voice.id}>
                 {voice.name} — {voice.description}
               </option>
             ))}
-          </Select>
+          </SelectNative>
         </Field>
       ) : null}
     </div>

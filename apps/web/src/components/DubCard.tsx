@@ -2,21 +2,29 @@ import { Link } from '@tanstack/react-router'
 import { isTerminal, languageLabel } from '@vozia/shared'
 import type { DubSummary } from '../lib/api'
 import { formatDate } from '../lib/format'
-import { statusLabel, toneForStatus } from '../lib/status-ui'
-import { Badge, Card, Progress } from './ui'
+import { badgeVariantForStatus, statusLabel } from '../lib/status-ui'
+import { cx, focusRing } from '../lib/utils'
+import { Badge, Card, ProgressBar } from './ui-next'
 
 export function DubCard({ dub }: { dub: DubSummary }) {
   return (
-    <Link to="/app/dubs/$dubId" params={{ dubId: dub.id }} className="block">
+    <Link to="/app/dubs/$dubId" params={{ dubId: dub.id }} className={cx('block rounded-lg', focusRing)}>
       <Card className="p-4 transition-shadow hover:shadow-md">
         <div className="flex items-center justify-between gap-3">
-          <div>
-            <h3 className="text-sm font-semibold text-slate-900">{languageLabel(dub.target_language)}</h3>
-            <p className="text-xs text-slate-500">{formatDate(dub.created_at)}</p>
+          <div className="min-w-0">
+            <h3 className="truncate text-sm font-semibold text-gray-900 dark:text-gray-50">{languageLabel(dub.target_language)}</h3>
+            <p className="text-xs text-gray-500 dark:text-gray-500">{formatDate(dub.created_at)}</p>
           </div>
-          <Badge tone={toneForStatus(dub.status)}>{statusLabel(dub.status)}</Badge>
+          <Badge variant={badgeVariantForStatus(dub.status)}>{statusLabel(dub.status)}</Badge>
         </div>
-        {!isTerminal(dub.status) ? <Progress value={dub.progress} className="mt-3" label={`${languageLabel(dub.target_language)} progress`} /> : null}
+        {!isTerminal(dub.status) ? (
+          <ProgressBar
+            value={dub.progress}
+            showAnimation
+            className="mt-3"
+            aria-label={`${languageLabel(dub.target_language)} progress`}
+          />
+        ) : null}
       </Card>
     </Link>
   )

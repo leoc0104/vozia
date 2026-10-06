@@ -39,6 +39,7 @@ describe('LibraryPage', () => {
     expect(screen.getByText('Japanese 45%')).toBeInTheDocument()
     expect(screen.getByText(/2:05/)).toBeInTheDocument()
     expect(screen.getByText('7 min left')).toBeInTheDocument()
+    expect(screen.getByRole('radiogroup', { name: 'Theme' })).toBeInTheDocument()
   })
 
   it('shows an empty state with a call to action', async () => {

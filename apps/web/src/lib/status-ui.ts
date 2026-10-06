@@ -1,6 +1,15 @@
 import { STAGE_ORDER, type DubStatus, type Pipeline } from '@vozia/shared'
 import type { Tone } from '../components/ui/Badge'
 
+export type StatusBadgeVariant = 'neutral' | 'info' | 'success' | 'error'
+
+export function badgeVariantForStatus(status: DubStatus): StatusBadgeVariant {
+  if (status === 'completed') return 'success'
+  if (status === 'failed') return 'error'
+  if (status === 'queued') return 'neutral'
+  return 'info'
+}
+
 export function toneForStatus(status: DubStatus): Tone {
   if (status === 'completed') return 'success'
   if (status === 'failed') return 'danger'
