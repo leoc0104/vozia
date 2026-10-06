@@ -1,11 +1,12 @@
-import { cn } from '../../lib/cn'
+import { LoaderCircle } from 'lucide-react'
+import { cx } from '../../lib/utils'
 
 export function Spinner({ className }: { className?: string }) {
   return (
-    <span
+    <LoaderCircle
       role="status"
       aria-label="Loading"
-      className={cn('inline-block animate-spin rounded-full border-2 border-current border-t-transparent', className ?? 'size-5')}
+      className={cx('animate-spin text-gray-400 dark:text-gray-600', className ?? 'size-5')}
     />
   )
 }

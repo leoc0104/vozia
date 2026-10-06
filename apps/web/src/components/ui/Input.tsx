@@ -1,39 +1,118 @@
-import type { InputHTMLAttributes, SelectHTMLAttributes, TextareaHTMLAttributes } from 'react'
-import { cn } from '../../lib/cn'
+// Tremor Input (Apache-2.0), adapted for Vozia
 
-const base =
-  'block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-xs placeholder:text-slate-400 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-200 disabled:bg-slate-100'
+import React from 'react'
+import { Eye, EyeOff, Search } from 'lucide-react'
+import { tv, type VariantProps } from 'tailwind-variants'
+import { cx, focusInput, focusRing, hasErrorInput } from '../../lib/utils'
 
-export function Input({ className, ...rest }: InputHTMLAttributes<HTMLInputElement>) {
-  return <input className={cn(base, className)} {...rest} />
+const inputStyles = tv({
+  base: [
+    // base
+    'relative block w-full appearance-none rounded-md border px-2.5 py-2 shadow-xs outline-hidden transition sm:text-sm',
+    // border color
+    'border-gray-300 dark:border-gray-800',
+    // text color
+    'text-gray-900 dark:text-gray-50',
+    // placeholder color
+    'placeholder-gray-400 dark:placeholder-gray-500',
+    // background color
+    'bg-white dark:bg-gray-950',
+    // disabled
+    'disabled:border-gray-300 disabled:bg-gray-100 disabled:text-gray-400',
+    'dark:disabled:border-gray-700 dark:disabled:bg-gray-800 dark:disabled:text-gray-500',
+    // file
+    [
+      'file:-my-2 file:-ml-2.5 file:cursor-pointer file:rounded-l-[5px] file:rounded-r-none file:border-0 file:px-3 file:py-2 file:outline-hidden focus:outline-hidden disabled:pointer-events-none',
+      'file:border-solid file:border-gray-300 file:bg-gray-50 file:text-gray-500 file:hover:bg-gray-100 dark:file:border-gray-800 dark:file:bg-gray-950 dark:file:hover:bg-gray-900/20',
+      'file:[border-inline-end-width:1px] file:[margin-inline-end:0.75rem]',
+    ],
+    // focus
+    focusInput,
+    // remove search cancel button
+    '[&::-webkit-search-cancel-button]:hidden [&::-webkit-search-decoration]:hidden',
+  ],
+  variants: {
+    hasError: {
+      true: hasErrorInput,
+    },
+    // number input
+    enableStepper: {
+      false:
+        '[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none',
+    },
+  },
+})
+
+interface InputProps extends React.InputHTMLAttributes<HTMLInputElement>, VariantProps<typeof inputStyles> {
+  inputClassName?: string
 }
 
-export function Select({ className, children, ...rest }: SelectHTMLAttributes<HTMLSelectElement>) {
-  return (
-    <select className={cn(base, 'pr-8', className)} {...rest}>
-      {children}
-    </select>
-  )
-}
+const Input = React.forwardRef<HTMLInputElement, InputProps>(
+  ({ className, inputClassName, hasError, enableStepper = true, type, ...props }: InputProps, forwardedRef) => {
+    const [typeState, setTypeState] = React.useState(type)
 
-export function Textarea({ className, ...rest }: TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return <textarea className={cn(base, 'min-h-24', className)} {...rest} />
-}
+    const isPassword = type === 'password'
+    const isSearch = type === 'search'
 
-export function Field({ label, htmlFor, hint, error, children }: { label: string; htmlFor: string; hint?: string; error?: string | null; children: React.ReactNode }) {
-  return (
-    <div className="space-y-1.5">
-      <label htmlFor={htmlFor} className="block text-sm font-medium text-slate-700">
-        {label}
-      </label>
-      {children}
-      {error ? (
-        <p className="text-sm text-red-600" role="alert">
-          {error}
-        </p>
-      ) : hint ? (
-        <p className="text-xs text-slate-500">{hint}</p>
-      ) : null}
-    </div>
-  )
-}
+    return (
+      <div className={cx('relative w-full', className)}>
+        <input
+          ref={forwardedRef}
+          type={isPassword ? typeState : type}
+          className={cx(
+            inputStyles({ hasError, enableStepper }),
+            {
+              'pl-8': isSearch,
+              'pr-10': isPassword,
+            },
+            inputClassName,
+          )}
+          {...props}
+        />
+        {isSearch && (
+          <div
+            className={cx(
+              // base
+              'pointer-events-none absolute bottom-0 left-2 flex h-full items-center justify-center',
+              // text color
+              'text-gray-400 dark:text-gray-600',
+            )}
+          >
+            <Search className="size-[1.125rem] shrink-0" aria-hidden="true" />
+          </div>
+        )}
+        {isPassword && (
+          <div className={cx('absolute bottom-0 right-0 flex h-full items-center justify-center px-3')}>
+            <button
+              aria-label="Change password visibility"
+              className={cx(
+                // base
+                'h-fit w-fit rounded-xs outline-hidden transition-all',
+                // text
+                'text-gray-400 dark:text-gray-600',
+                // hover
+                'hover:text-gray-500 dark:hover:text-gray-500',
+                focusRing,
+              )}
+              type="button"
+              onClick={() => {
+                setTypeState(typeState === 'password' ? 'text' : 'password')
+              }}
+            >
+              <span className="sr-only">{typeState === 'password' ? 'Show password' : 'Hide password'}</span>
+              {typeState === 'password' ? (
+                <Eye aria-hidden="true" className="size-5 shrink-0" />
+              ) : (
+                <EyeOff aria-hidden="true" className="size-5 shrink-0" />
+              )}
+            </button>
+          </div>
+        )}
+      </div>
+    )
+  },
+)
+
+Input.displayName = 'Input'
+
+export { Input, type InputProps }

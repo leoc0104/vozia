@@ -5,7 +5,7 @@ import { cx, focusRing } from '../lib/utils'
 import { useAuthStore } from '../stores/auth-store'
 import { Logo } from './Logo'
 import { ThemeSwitcher } from './ThemeSwitcher'
-import { Badge, Button } from './ui-next'
+import { Badge, Button } from './ui'
 
 const navLink = cx('rounded-md hover:text-gray-900 dark:hover:text-gray-50', focusRing)
 const activeNavLink = { className: 'text-gray-900 dark:text-gray-50' }

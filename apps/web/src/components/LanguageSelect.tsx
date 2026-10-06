@@ -1,5 +1,5 @@
 import { LANGUAGES } from '@vozia/shared'
-import { SelectNative } from './ui-next'
+import { SelectNative } from './ui'
 
 export function LanguageSelect({
   id,

@@ -9,7 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from './ui-next'
+} from './ui'
 
 export interface ConfirmDialogProps {
   trigger: ReactElement

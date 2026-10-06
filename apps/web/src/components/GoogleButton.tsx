@@ -1,4 +1,4 @@
-import { Button, type ButtonProps } from './ui-next'
+import { Button, type ButtonProps } from './ui'
 
 export function GoogleButton(props: ButtonProps) {
   return (

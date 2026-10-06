@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Logo } from './Logo'
 import { ThemeSwitcher } from './ThemeSwitcher'
-import { Card } from './ui-next'
+import { Card } from './ui'
 
 export function AuthLayout({
   title,

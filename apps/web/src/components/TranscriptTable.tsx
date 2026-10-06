@@ -1,6 +1,6 @@
 import type { DubSegmentRow } from '@vozia/db'
 import { formatDuration } from '../lib/format'
-import { Card, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRoot, TableRow } from './ui-next'
+import { Card, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRoot, TableRow } from './ui'
 
 export function TranscriptTable({ segments, sourceLabel, targetLabel }: { segments: DubSegmentRow[]; sourceLabel: string; targetLabel: string }) {
   return (

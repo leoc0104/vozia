@@ -2,8 +2,10 @@ import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from '@tanstack/react-router'
 import { AuthLayout } from '../components/AuthLayout'
 import { GoogleButton } from '../components/GoogleButton'
-import { Alert, Button, Field, Input } from '../components/ui'
+import { Button, Callout, Divider, Field, Input } from '../components/ui'
 import { useAuthStore } from '../stores/auth-store'
+
+const authLink = 'font-medium text-brand-600 hover:underline dark:text-brand-400'
 
 export function SignupPage() {
   const navigate = useNavigate()
@@ -37,8 +39,8 @@ export function SignupPage() {
   if (sent) {
     return (
       <AuthLayout title="Check your inbox" subtitle={`We sent a confirmation link to ${email}.`}>
-        <Alert tone="success">Open the link to activate your account, then log in.</Alert>
-        <Link to="/login" className="mt-4 inline-block text-sm font-medium text-brand-600 hover:underline">
+        <Callout variant="success">Open the link to activate your account, then log in.</Callout>
+        <Link to="/login" className={`mt-4 inline-block text-sm ${authLink}`}>
           Back to log in
         </Link>
       </AuthLayout>
@@ -52,14 +54,14 @@ export function SignupPage() {
       footer={
         <>
           Already have an account?{' '}
-          <Link to="/login" className="font-medium text-brand-600 hover:underline">
+          <Link to="/login" className={authLink}>
             Log in
           </Link>
         </>
       }
     >
       <form onSubmit={onSubmit} className="space-y-4" noValidate>
-        {error || localError ? <Alert tone="error">{localError ?? error}</Alert> : null}
+        {error || localError ? <Callout variant="error">{localError ?? error}</Callout> : null}
         <Field label="Name" htmlFor="name">
           <Input id="name" autoComplete="name" required value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
         </Field>
@@ -67,17 +69,20 @@ export function SignupPage() {
           <Input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
         </Field>
         <Field label="Password" htmlFor="password" hint="At least 8 characters.">
-          <Input id="password" type="password" autoComplete="new-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+          <Input
+            id="password"
+            type="password"
+            autoComplete="new-password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
         </Field>
-        <Button type="submit" className="w-full" loading={busy}>
+        <Button type="submit" className="w-full" isLoading={busy}>
           Create account
         </Button>
       </form>
-      <div className="my-5 flex items-center gap-3 text-xs uppercase text-slate-400">
-        <span className="h-px flex-1 bg-slate-200" />
-        or
-        <span className="h-px flex-1 bg-slate-200" />
-      </div>
+      <Divider className="my-5 text-xs uppercase">or</Divider>
       <GoogleButton onClick={() => void signInWithGoogle()} />
     </AuthLayout>
   )

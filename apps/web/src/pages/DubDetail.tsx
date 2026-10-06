@@ -3,13 +3,14 @@ import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { Download, FileText, RotateCcw, Trash2 } from 'lucide-react'
 import { BUCKETS } from '@vozia/db'
-import { languageLabel } from '@vozia/shared'
+import { languageLabel, type DubStatus } from '@vozia/shared'
+import { ConfirmDialog } from '../components/ConfirmDialog'
 import { StageStepper } from '../components/StageStepper'
 import { TranscriptTable } from '../components/TranscriptTable'
-import { Alert, Badge, Button, Card, CardBody, Spinner } from '../components/ui'
+import { Badge, Button, Callout, Card, Spinner } from '../components/ui'
 import { deleteDub, retryDub } from '../lib/api'
 import { qk, useDub, useSegments, useSignedUrl, useVideo } from '../lib/queries'
-import { statusLabel, toneForStatus } from '../lib/status-ui'
+import { badgeVariantForStatus, statusLabel } from '../lib/status-ui'
 
 export function DubDetailPage() {
   const { dubId } = useParams({ from: '/app/dubs/$dubId' })
@@ -43,7 +44,7 @@ export function DubDetailPage() {
   }
 
   async function onDelete() {
-    if (!dub.data || !window.confirm('Delete this dub? This cannot be undone.')) return
+    if (!dub.data) return
     setBusy('delete')
     try {
       await deleteDub(dub.data)
@@ -63,91 +64,112 @@ export function DubDetailPage() {
     )
   }
   if (dub.isError || !dub.data) {
-    return <Alert tone="error">This dub could not be found.</Alert>
+    return <Callout variant="error">This dub could not be found.</Callout>
   }
 
   const d = dub.data
+  const failedWhile = d.failed_stage ? ` while ${statusLabel(d.failed_stage as DubStatus).toLowerCase()}` : ''
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <Link to="/app/videos/$videoId" params={{ videoId: d.video_id }} className="text-sm text-slate-500 hover:underline">
+        <div className="min-w-0">
+          <Link
+            to="/app/videos/$videoId"
+            params={{ videoId: d.video_id }}
+            className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-300"
+          >
             ← {title}
           </Link>
-          <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900">{language} dub</h1>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-50">{language} dub</h1>
           <div className="mt-2 flex flex-wrap items-center gap-2">
-            <Badge tone={toneForStatus(d.status)}>{statusLabel(d.status)}</Badge>
-            <Badge>{d.voice_mode === 'clone' ? 'Cloned voice' : 'Stock voice'}</Badge>
-            {d.detected_language ? <Badge>From {languageLabel(d.detected_language)}</Badge> : null}
+            <Badge variant={badgeVariantForStatus(d.status)}>{statusLabel(d.status)}</Badge>
+            <Badge variant="neutral">{d.voice_mode === 'clone' ? 'Cloned voice' : 'Stock voice'}</Badge>
+            {d.detected_language ? <Badge variant="neutral">From {languageLabel(d.detected_language)}</Badge> : null}
           </div>
         </div>
         <div className="flex gap-2">
           {d.status === 'failed' ? (
-            <Button onClick={() => void onRetry()} loading={busy === 'retry'}>
+            <Button onClick={() => void onRetry()} isLoading={busy === 'retry'}>
               <RotateCcw className="size-4" aria-hidden="true" /> Retry
             </Button>
           ) : null}
-          <Button variant="danger" onClick={() => void onDelete()} loading={busy === 'delete'}>
-            <Trash2 className="size-4" aria-hidden="true" /> Delete
-          </Button>
+          <ConfirmDialog
+            trigger={
+              <Button variant="destructive">
+                <Trash2 className="size-4" aria-hidden="true" /> Delete
+              </Button>
+            }
+            title="Delete this dub?"
+            description="This removes the dubbed video, its audio and subtitles. It cannot be undone."
+            confirmLabel="Delete"
+            onConfirm={onDelete}
+            busy={busy === 'delete'}
+          />
         </div>
       </div>
 
-      {actionError ? <Alert tone="error">{actionError}</Alert> : null}
+      {actionError ? <Callout variant="error">{actionError}</Callout> : null}
 
       {d.status === 'failed' ? (
-        <Alert tone="error">
-          <p className="font-medium">Dubbing failed{d.failed_stage ? ` while ${statusLabel(d.failed_stage as never).toLowerCase()}` : ''}.</p>
-          <p className="mt-1">{d.error_message ?? 'Unknown error.'}</p>
-        </Alert>
+        <Callout variant="error" title={`Dubbing failed${failedWhile}.`}>
+          {d.error_message ?? 'Unknown error.'}
+        </Callout>
       ) : null}
 
       {d.status === 'completed' ? (
         <section className="space-y-4">
-          <div className="overflow-hidden rounded-xl bg-black">
+          <div className="overflow-hidden rounded-lg bg-black">
             {playback.data ? (
               <video controls src={playback.data} className="aspect-video w-full" />
             ) : (
               <div className="grid aspect-video place-items-center">
-                <Spinner className="size-6 text-white" />
+                <Spinner className="size-6 text-white dark:text-white" />
               </div>
             )}
           </div>
           <div className="flex flex-wrap gap-2">
-            <a href={download.data ?? '#'} aria-disabled={!download.data}>
-              <Button disabled={!download.data}>
+            {download.data ? (
+              <Button asChild>
+                <a href={download.data}>
+                  <Download className="size-4" aria-hidden="true" /> Download video
+                </a>
+              </Button>
+            ) : (
+              <Button disabled>
                 <Download className="size-4" aria-hidden="true" /> Download video
               </Button>
-            </a>
+            )}
             {srtOriginal.data ? (
-              <a href={srtOriginal.data}>
-                <Button variant="secondary">
+              <Button asChild variant="secondary">
+                <a href={srtOriginal.data}>
                   <FileText className="size-4" aria-hidden="true" /> Original subtitles
-                </Button>
-              </a>
+                </a>
+              </Button>
             ) : null}
             {srtTranslated.data ? (
-              <a href={srtTranslated.data}>
-                <Button variant="secondary">
+              <Button asChild variant="secondary">
+                <a href={srtTranslated.data}>
                   <FileText className="size-4" aria-hidden="true" /> {language} subtitles
-                </Button>
-              </a>
+                </a>
+              </Button>
             ) : null}
           </div>
         </section>
       ) : (
         <Card>
-          <CardBody>
-            <StageStepper pipeline={d.pipeline} status={d.status} progress={d.progress} failedStage={d.failed_stage} />
-          </CardBody>
+          <StageStepper pipeline={d.pipeline} status={d.status} progress={d.progress} failedStage={d.failed_stage} />
         </Card>
       )}
 
       {segments.data && segments.data.length > 0 ? (
         <section>
-          <h2 className="text-lg font-semibold text-slate-900">Transcript</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-50">Transcript</h2>
           <div className="mt-3">
-            <TranscriptTable segments={segments.data} sourceLabel={d.detected_language ? languageLabel(d.detected_language) : 'Original'} targetLabel={language} />
+            <TranscriptTable
+              segments={segments.data}
+              sourceLabel={d.detected_language ? languageLabel(d.detected_language) : 'Original'}
+              targetLabel={language}
+            />
           </div>
         </section>
       ) : null}

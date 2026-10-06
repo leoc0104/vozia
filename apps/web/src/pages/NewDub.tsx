@@ -5,13 +5,15 @@ import { extractYoutubeId } from '@vozia/shared'
 import { LanguageSelect } from '../components/LanguageSelect'
 import { UploadDropzone } from '../components/UploadDropzone'
 import { VoiceModePicker } from '../components/VoiceModePicker'
-import { Alert, Button, Field, Input, Progress, Tabs } from '../components/ui'
+import { Button, Callout, Field, Input, ProgressBar, Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui'
 import { InsufficientMinutesError, createDub, createVideo } from '../lib/api'
 import { useVideo } from '../lib/queries'
 import { uploadSource } from '../lib/upload'
 import { useAuthStore } from '../stores/auth-store'
 import { useCreateDubStore, type CreateDubErrors } from '../stores/create-dub-store'
 import { useUploadStore } from '../stores/upload-store'
+
+const sectionTitle = 'text-base font-semibold text-gray-900 dark:text-gray-50'
 
 export function NewDubPage() {
   const navigate = useNavigate()
@@ -83,49 +85,60 @@ export function NewDubPage() {
   return (
     <form onSubmit={onSubmit} className="mx-auto max-w-2xl space-y-8" noValidate>
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">{existingVideoId ? 'Add a language' : 'New dub'}</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-50">
+          {existingVideoId ? 'Add a language' : 'New dub'}
+        </h1>
         {existingVideoId ? (
-          <p className="mt-1 text-sm text-slate-500">Adding a dub to {existingVideo.data?.title ?? 'this video'}.</p>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-500">Adding a dub to {existingVideo.data?.title ?? 'this video'}.</p>
         ) : (
-          <p className="mt-1 text-sm text-slate-500">Upload a video or paste a YouTube link, then choose the language and voice.</p>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-500">
+            Upload a video or paste a YouTube link, then choose the language and voice.
+          </p>
         )}
       </div>
 
       {submitError === 'minutes' ? (
-        <Alert tone="error">
+        <Callout variant="error">
           You have used all your dubbing minutes.{' '}
           <Link to="/pricing" className="font-medium underline">
             See plans
           </Link>
-        </Alert>
+        </Callout>
       ) : submitError ? (
-        <Alert tone="error">{submitError}</Alert>
+        <Callout variant="error">{submitError}</Callout>
       ) : null}
 
       {!existingVideoId ? (
         <section className="space-y-4">
-          <h2 className="text-base font-semibold text-slate-900">Source</h2>
+          <h2 className={sectionTitle}>Source</h2>
           <Tabs
-            items={[
-              { value: 'upload', label: 'Upload' },
-              { value: 'youtube', label: 'YouTube link' },
-            ]}
             value={form.sourceTab}
-            onChange={(tab) => form.setField('sourceTab', tab)}
-          />
-          {form.sourceTab === 'upload' ? (
-            <UploadDropzone file={form.file} onFile={(file) => form.setField('file', file)} error={errors.source} />
-          ) : (
-            <Field label="YouTube URL" htmlFor="youtube-url" error={errors.source}>
-              <Input
-                id="youtube-url"
-                placeholder="https://www.youtube.com/watch?v=…"
-                value={form.youtubeUrl}
-                onChange={(e) => form.setField('youtubeUrl', e.target.value)}
-              />
-            </Field>
-          )}
-          {upload && upload.status === 'uploading' ? <Progress value={upload.fraction * 100} label="Upload progress" /> : null}
+            onValueChange={(value) => {
+              if (value === 'upload' || value === 'youtube') form.setField('sourceTab', value)
+            }}
+          >
+            <TabsList variant="solid">
+              <TabsTrigger value="upload">Upload</TabsTrigger>
+              <TabsTrigger value="youtube">YouTube link</TabsTrigger>
+            </TabsList>
+            <TabsContent value="upload" className="mt-4">
+              <UploadDropzone file={form.file} onFile={(file) => form.setField('file', file)} error={errors.source} />
+            </TabsContent>
+            <TabsContent value="youtube" className="mt-4">
+              <Field label="YouTube URL" htmlFor="youtube-url" error={errors.source}>
+                <Input
+                  id="youtube-url"
+                  placeholder="https://www.youtube.com/watch?v=…"
+                  hasError={Boolean(errors.source)}
+                  value={form.youtubeUrl}
+                  onChange={(e) => form.setField('youtubeUrl', e.target.value)}
+                />
+              </Field>
+            </TabsContent>
+          </Tabs>
+          {upload && upload.status === 'uploading' ? (
+            <ProgressBar value={upload.fraction * 100} showAnimation aria-label="Upload progress" />
+          ) : null}
         </section>
       ) : null}
 
@@ -139,7 +152,7 @@ export function NewDubPage() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-base font-semibold text-slate-900">Voice</h2>
+        <h2 className={sectionTitle}>Voice</h2>
         <VoiceModePicker
           voiceMode={form.voiceMode}
           stockVoiceId={form.stockVoiceId}
@@ -152,13 +165,11 @@ export function NewDubPage() {
       </section>
 
       <div className="flex justify-end gap-3">
-        <Link to="/app">
-          <Button variant="secondary" type="button">
-            Cancel
-          </Button>
-        </Link>
-        <Button type="submit" loading={busy}>
-          {busy && upload?.status === 'uploading' ? 'Uploading…' : 'Start dubbing'}
+        <Button asChild variant="secondary">
+          <Link to="/app">Cancel</Link>
+        </Button>
+        <Button type="submit" isLoading={busy} loadingText={upload?.status === 'uploading' ? 'Uploading…' : undefined}>
+          Start dubbing
         </Button>
       </div>
     </form>

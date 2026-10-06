@@ -2,7 +2,7 @@ import { Check, X } from 'lucide-react'
 import type { DubStatus, Pipeline } from '@vozia/shared'
 import { statusLabel, stepStates } from '../lib/status-ui'
 import { cx } from '../lib/utils'
-import { ProgressBar } from './ui-next'
+import { ProgressBar } from './ui'
 
 export function StageStepper({
   pipeline,

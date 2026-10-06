@@ -2,7 +2,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { ConfirmDialog } from '../ConfirmDialog'
-import { Button } from '../ui-next'
+import { Button } from '../ui'
 
 function renderDialog(onConfirm: () => Promise<void> | void = vi.fn()) {
   render(

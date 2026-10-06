@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Logo } from './Logo'
 import { ThemeSwitcher } from './ThemeSwitcher'
-import { Button } from './ui-next'
+import { Button } from './ui'
 
 const navLink = 'text-sm font-medium text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-50'
 

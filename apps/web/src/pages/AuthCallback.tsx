@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { useNavigate, useSearch } from '@tanstack/react-router'
 import { AuthLayout } from '../components/AuthLayout'
-import { Alert, Spinner } from '../components/ui'
+import { Callout, Spinner } from '../components/ui'
 import { safeNext } from '../lib/auth-guard'
 import { useAuthStore } from '../stores/auth-store'
 
@@ -24,9 +24,9 @@ export function AuthCallbackPage() {
   return (
     <AuthLayout title="Signing you in…">
       {errorDescription ? (
-        <Alert tone="error">{errorDescription}</Alert>
+        <Callout variant="error">{errorDescription}</Callout>
       ) : (
-        <div className="flex items-center gap-3 text-sm text-slate-600">
+        <div className="flex items-center gap-3 text-sm text-gray-600 dark:text-gray-400">
           <Spinner className="size-5" /> Finishing authentication
         </div>
       )}

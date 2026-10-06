@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { FakeSupabase } from '../../test/fake-supabase'
@@ -46,6 +46,27 @@ describe('DubDetailPage', () => {
   beforeEach(() => {
     api.getDub.mockReset()
     api.retryDub.mockClear()
+    api.deleteDub.mockClear()
+  })
+
+  it('asks before deleting and deletes on confirm', async () => {
+    api.getDub.mockResolvedValue(baseDub)
+    const { router } = await renderApp('/app/dubs/d1', fake)
+    await userEvent.click(await screen.findByRole('button', { name: /delete/i }))
+    const dialog = await screen.findByRole('dialog', { name: 'Delete this dub?' })
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Delete' }))
+    await waitFor(() => expect(api.deleteDub).toHaveBeenCalledWith(expect.objectContaining({ id: 'd1' })))
+    await waitFor(() => expect(router.state.location.pathname).toBe('/app/videos/v1'))
+  })
+
+  it('keeps the dub when the deletion is cancelled', async () => {
+    api.getDub.mockResolvedValue(baseDub)
+    await renderApp('/app/dubs/d1', fake)
+    await userEvent.click(await screen.findByRole('button', { name: /delete/i }))
+    const dialog = await screen.findByRole('dialog', { name: 'Delete this dub?' })
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+    expect(api.deleteDub).not.toHaveBeenCalled()
   })
 
   it('shows live progress and the transcript for an in-progress dub', async () => {

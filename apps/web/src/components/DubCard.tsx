@@ -4,7 +4,7 @@ import type { DubSummary } from '../lib/api'
 import { formatDate } from '../lib/format'
 import { badgeVariantForStatus, statusLabel } from '../lib/status-ui'
 import { cx, focusRing } from '../lib/utils'
-import { Badge, Card, ProgressBar } from './ui-next'
+import { Badge, Card, ProgressBar } from './ui'
 
 export function DubCard({ dub }: { dub: DubSummary }) {
   return (

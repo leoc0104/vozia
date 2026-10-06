@@ -1,8 +1,11 @@
 import { useState, type FormEvent } from 'react'
 import { Link } from '@tanstack/react-router'
-import { Alert, Button, Card, CardBody, Field, Input, Progress } from '../components/ui'
+import { ThemeSwitcher } from '../components/ThemeSwitcher'
+import { Button, Callout, Card, Field, Input, ProgressBar } from '../components/ui'
 import { updateProfile } from '../lib/api'
 import { useAuthStore } from '../stores/auth-store'
+
+const cardTitle = 'text-base font-semibold text-gray-900 dark:text-gray-50'
 
 export function SettingsPage() {
   const { profile, user, signOut } = useAuthStore()
@@ -11,34 +14,42 @@ export function SettingsPage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-8">
-      <h1 className="text-2xl font-bold tracking-tight text-slate-900">Settings</h1>
+      <h1 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-50">Settings</h1>
 
-      <Card>
-        <CardBody className="space-y-4">
-          <h2 className="text-base font-semibold text-slate-900">Dubbing minutes</h2>
-          <p className="text-sm text-slate-600">
-            <span className="font-medium text-slate-900">{used}</span> of {quota} minutes used
-          </p>
-          <Progress value={quota > 0 ? (used / quota) * 100 : 0} label="Minutes used" />
-          <p className="text-xs text-slate-500">
-            Need more?{' '}
-            <Link to="/pricing" className="font-medium text-brand-600 hover:underline">
-              See plans
-            </Link>
-          </p>
-        </CardBody>
+      <Card className="space-y-4">
+        <h2 className={cardTitle}>Dubbing minutes</h2>
+        <p className="text-sm text-gray-600 dark:text-gray-400">
+          <span className="font-medium text-gray-900 dark:text-gray-50">{used}</span> of {quota} minutes used
+        </p>
+        <ProgressBar value={quota > 0 ? (used / quota) * 100 : 0} aria-label="Minutes used" />
+        <p className="text-xs text-gray-500 dark:text-gray-500">
+          Need more?{' '}
+          <Link to="/pricing" className="font-medium text-brand-600 hover:underline dark:text-brand-400">
+            See plans
+          </Link>
+        </p>
+      </Card>
+
+      <Card asChild>
+        <section aria-labelledby="appearance-title" className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h2 id="appearance-title" className={cardTitle}>
+              Appearance
+            </h2>
+            <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">Use light or dark mode, or follow your device.</p>
+          </div>
+          <ThemeSwitcher />
+        </section>
       </Card>
 
       {/* Keyed on the profile so the form re-initialises when the profile first loads. */}
       <ProfileForm key={profile?.id ?? 'none'} initialName={profile?.display_name ?? ''} email={user?.email ?? ''} />
 
-      <Card>
-        <CardBody className="flex items-center justify-between">
-          <p className="text-sm text-slate-600">Signed in as {user?.email}</p>
-          <Button variant="secondary" onClick={() => void signOut()}>
-            Sign out
-          </Button>
-        </CardBody>
+      <Card className="flex flex-wrap items-center justify-between gap-4">
+        <p className="text-sm text-gray-600 dark:text-gray-400">Signed in as {user?.email}</p>
+        <Button variant="secondary" onClick={() => void signOut()}>
+          Sign out
+        </Button>
       </Card>
     </div>
   )
@@ -48,7 +59,7 @@ function ProfileForm({ initialName, email }: { initialName: string; email: strin
   const refreshProfile = useAuthStore((s) => s.refreshProfile)
   const [displayName, setDisplayName] = useState(initialName)
   const [busy, setBusy] = useState(false)
-  const [message, setMessage] = useState<{ tone: 'success' | 'error'; text: string } | null>(null)
+  const [message, setMessage] = useState<{ variant: 'success' | 'error'; text: string } | null>(null)
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault()
@@ -57,9 +68,9 @@ function ProfileForm({ initialName, email }: { initialName: string; email: strin
     try {
       await updateProfile({ display_name: displayName.trim() })
       await refreshProfile()
-      setMessage({ tone: 'success', text: 'Profile saved.' })
+      setMessage({ variant: 'success', text: 'Profile saved.' })
     } catch (e) {
-      setMessage({ tone: 'error', text: (e as Error).message })
+      setMessage({ variant: 'error', text: (e as Error).message })
     } finally {
       setBusy(false)
     }
@@ -67,21 +78,19 @@ function ProfileForm({ initialName, email }: { initialName: string; email: strin
 
   return (
     <Card>
-      <CardBody>
-        <form onSubmit={onSubmit} className="space-y-4">
-          <h2 className="text-base font-semibold text-slate-900">Profile</h2>
-          {message ? <Alert tone={message.tone}>{message.text}</Alert> : null}
-          <Field label="Display name" htmlFor="display-name">
-            <Input id="display-name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
-          </Field>
-          <Field label="Email" htmlFor="email">
-            <Input id="email" value={email} disabled />
-          </Field>
-          <Button type="submit" loading={busy}>
-            Save
-          </Button>
-        </form>
-      </CardBody>
+      <form onSubmit={onSubmit} className="space-y-4">
+        <h2 className={cardTitle}>Profile</h2>
+        {message ? <Callout variant={message.variant}>{message.text}</Callout> : null}
+        <Field label="Display name" htmlFor="display-name">
+          <Input id="display-name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
+        </Field>
+        <Field label="Email" htmlFor="email">
+          <Input id="email" value={email} disabled />
+        </Field>
+        <Button type="submit" isLoading={busy}>
+          Save
+        </Button>
+      </form>
     </Card>
   )
 }

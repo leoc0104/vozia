@@ -5,7 +5,7 @@ import type { VideoWithDubs } from '../lib/api'
 import { formatDate, formatDuration } from '../lib/format'
 import { badgeVariantForStatus } from '../lib/status-ui'
 import { cx, focusRing } from '../lib/utils'
-import { Badge, Card } from './ui-next'
+import { Badge, Card } from './ui'
 
 export function VideoCard({ video, thumbnailUrl }: { video: VideoWithDubs; thumbnailUrl?: string }) {
   return (

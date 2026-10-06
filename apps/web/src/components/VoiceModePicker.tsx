@@ -1,5 +1,5 @@
 import { STOCK_VOICES, VOICE_MODES, type VoiceMode } from '@vozia/shared'
-import { Field, RadioCardGroup, RadioCardIndicator, RadioCardItem, SelectNative } from './ui-next'
+import { Field, RadioCardGroup, RadioCardIndicator, RadioCardItem, SelectNative } from './ui'
 
 const options: { value: VoiceMode; title: string; body: string }[] = [
   { value: 'clone', title: 'Keep my voice', body: 'Clones the speaker from the original audio.' },

@@ -13,32 +13,32 @@ export function LandingPage() {
   return (
     <MarketingLayout>
       <section className="mx-auto max-w-6xl px-4 pb-16 pt-12 sm:px-6 sm:pt-20">
-        <p className="text-sm font-semibold uppercase tracking-wide text-brand-600">AI dubbing with voice cloning</p>
-        <h1 className="mt-3 max-w-3xl text-4xl font-bold tracking-tight text-slate-900 sm:text-6xl">
+        <p className="text-sm font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-400">AI dubbing with voice cloning</p>
+        <h1 className="mt-3 max-w-3xl text-4xl font-bold tracking-tight text-gray-900 sm:text-6xl dark:text-gray-50">
           Dub your videos into {LANGUAGES.length} languages — in your own voice.
         </h1>
-        <p className="mt-5 max-w-2xl text-lg text-slate-600">
+        <p className="mt-5 max-w-2xl text-lg text-gray-600 dark:text-gray-400">
           Vozia transcribes, translates and re-voices your video while preserving the speaker&apos;s voice and the background music.
           Minutes instead of weeks, a fraction of the cost of a studio.
         </p>
         <div className="mt-8 flex flex-wrap gap-3">
-          <Link to="/signup">
-            <Button size="lg">Dub your first video free</Button>
-          </Link>
-          <Link to="/pricing">
-            <Button size="lg" variant="secondary">
-              See pricing
-            </Button>
-          </Link>
+          <Button asChild size="lg">
+            <Link to="/signup">Dub your first video free</Link>
+          </Button>
+          <Button asChild size="lg" variant="secondary">
+            <Link to="/pricing">See pricing</Link>
+          </Button>
         </div>
       </section>
-      <section className="border-t border-slate-100 bg-slate-50">
+      <section className="border-t border-gray-100 bg-gray-50 dark:border-gray-900 dark:bg-gray-900/40">
         <div className="mx-auto grid max-w-6xl gap-8 px-4 py-16 sm:grid-cols-3 sm:px-6">
           {steps.map((step, i) => (
             <div key={step.title}>
-              <span className="grid size-8 place-items-center rounded-full bg-brand-100 text-sm font-semibold text-brand-700">{i + 1}</span>
-              <h2 className="mt-4 text-lg font-semibold text-slate-900">{step.title}</h2>
-              <p className="mt-2 text-sm text-slate-600">{step.body}</p>
+              <span className="grid size-8 place-items-center rounded-full bg-brand-100 text-sm font-semibold text-brand-700 dark:bg-brand-500/15 dark:text-brand-300">
+                {i + 1}
+              </span>
+              <h2 className="mt-4 text-lg font-semibold text-gray-900 dark:text-gray-50">{step.title}</h2>
+              <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">{step.body}</p>
             </div>
           ))}
         </div>
