@@ -1,0 +1,25 @@
+# Development image for compose.yaml: Node 22 + pnpm, running as the image's `node` user (uid 1000) so
+# files written into the bind-mounted repository stay owned by you.
+FROM node:22-bookworm-slim AS base
+
+# The node_modules and pnpm store paths become volumes; creating them here makes those volumes writable by `node`.
+RUN npm install -g pnpm@11.10.0 \
+ && mkdir -p /app/node_modules /app/apps/web/node_modules /app/apps/worker/node_modules \
+    /app/packages/shared/node_modules /app/packages/db/node_modules /home/node/.local/share/pnpm \
+ && chown -R node:node /app /home/node/.local
+
+USER node
+WORKDIR /app
+# Keep pnpm's store in its compose volume. Left alone, pnpm puts it inside the bind-mounted repo,
+# because the volume is a different filesystem from the project.
+ENV pnpm_config_store_dir=/home/node/.local/share/pnpm/store
+
+# The worker also gets the binaries its real drivers call, as in apps/worker/Dockerfile.
+FROM base AS worker
+USER root
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends ffmpeg python3 curl ca-certificates \
+ && rm -rf /var/lib/apt/lists/* \
+ && curl -fsSL https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp \
+ && chmod +x /usr/local/bin/yt-dlp
+USER node

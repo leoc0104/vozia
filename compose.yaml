@@ -1,0 +1,67 @@
+# Local development in Docker: the web app and the worker run here, next to the Supabase stack that
+# `supabase start` also runs in Docker. Start Supabase first, then `docker compose up -d`.
+name: vozia
+
+# The keys every local Supabase stack prints in `supabase status`; they only work against that stack.
+x-local-supabase:
+  anon-key: &anon-key eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6ImFub24iLCJleHAiOjE5ODM4MTI5OTZ9.CRXP1A7WOeoJeXxjNni43kdQwgnWNReilDMblYTn_I0
+  service-role-key: &service-role-key eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS1kZW1vIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImV4cCI6MTk4MzgxMjk5Nn0.EGIM96RAZx35lJzdJsyH-qQwv8Hdp7fsn3W0YpN81IU
+
+x-dev: &dev
+  build: { context: ., dockerfile: Dockerfile.dev, target: base }
+  volumes:
+    - .:/app
+    # Dependencies live in volumes, so they never mix with a node_modules installed on the host.
+    - node_modules:/app/node_modules
+    - web_node_modules:/app/apps/web/node_modules
+    - worker_node_modules:/app/apps/worker/node_modules
+    - shared_node_modules:/app/packages/shared/node_modules
+    - db_node_modules:/app/packages/db/node_modules
+    - pnpm_store:/home/node/.local/share/pnpm
+
+x-after-install: &after-install
+  depends_on:
+    install: { condition: service_completed_successfully }
+
+services:
+  # Installs dependencies and builds packages/shared + packages/db, then exits.
+  install:
+    <<: *dev
+    command: sh -c 'pnpm install --frozen-lockfile && pnpm --filter "./packages/**" build'
+
+  # Rebuilds packages/shared and packages/db on change, so the web app and the worker reload with them.
+  packages:
+    <<: [*dev, *after-install]
+    command: pnpm --filter "./packages/**" --parallel dev
+
+  web:
+    <<: [*dev, *after-install]
+    command: pnpm --filter @vozia/web exec vite --host 0.0.0.0 --strictPort
+    ports: ["5173:5173"]
+    environment:
+      # Your browser calls Supabase directly, so this is the address as seen from your machine.
+      VITE_SUPABASE_URL: http://127.0.0.1:54321
+      VITE_SUPABASE_ANON_KEY: *anon-key
+
+  worker:
+    <<: [*dev, *after-install]
+    build: { context: ., dockerfile: Dockerfile.dev, target: worker }
+    command: pnpm --filter @vozia/worker dev
+    # Optional provider keys and driver choices (see apps/worker/.env.example); the connection settings below win.
+    env_file:
+      - path: apps/worker/.env
+        required: false
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@host.docker.internal:54322/postgres
+      SUPABASE_URL: http://host.docker.internal:54321
+      SUPABASE_SERVICE_ROLE_KEY: *service-role-key
+      VOZIA_STORAGE_DRIVER: supabase
+    extra_hosts: ["host.docker.internal:host-gateway"]
+
+volumes:
+  node_modules:
+  web_node_modules:
+  worker_node_modules:
+  shared_node_modules:
+  db_node_modules:
+  pnpm_store:

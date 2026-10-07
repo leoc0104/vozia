@@ -42,43 +42,45 @@ worker, which is the one place that needs ffmpeg/yt-dlp and the provider API key
 | `packages/shared` | Statuses/stages, languages, stock voices, plans, SRT formatting, zod schemas |
 | `packages/db` | `Database` types, Supabase client factories, storage path helpers |
 | `supabase/` | `config.toml`, migrations, SQL tests (`supabase/tests`) |
+| `compose.yaml`, `Dockerfile.dev` | Local development containers: web, worker, package watchers |
 | `docs/superpowers` | Design spec and implementation plan |
 
 ## Prerequisites
 
-- Node 22 and pnpm 11 (`corepack enable`)
-- Docker (local Supabase stack and the SQL test harness)
-- Supabase CLI: `pnpm dlx supabase@latest --help` (or install it globally)
-- Optional for real media processing: `ffmpeg`, `ffprobe`, `yt-dlp` on the worker machine
+- Docker. Everything runs in containers.
+- Supabase CLI, which starts and stops the Supabase containers and then exits
+  ([install guide](https://supabase.com/docs/guides/local-development/cli/getting-started)). On Linux/WSL:
+  `curl -fsSL https://github.com/supabase/cli/releases/latest/download/supabase_linux_amd64.tar.gz | tar -xz -C ~/.local/bin supabase`
+- Optional: Node 22 and pnpm 11 (`corepack enable`) to run the apps outside Docker.
 
-## Quick start (local, no API keys)
-
-```bash
-pnpm install
-pnpm dlx supabase start          # local Postgres/Auth/Storage/Realtime; applies supabase/migrations
-pnpm dlx supabase status         # copy the API URL, anon key and service_role key
-```
-
-Create the env files:
+## Quick start (local, in Docker, no API keys)
 
 ```bash
-cp apps/web/.env.example apps/web/.env         # VITE_SUPABASE_URL=http://127.0.0.1:54321, VITE_SUPABASE_ANON_KEY=<anon key>
-cp apps/worker/.env.example apps/worker/.env   # DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres
-                                               # SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, VOZIA_STORAGE_DRIVER=supabase
+supabase start         # Supabase in Docker; applies supabase/migrations on first start
+docker compose up -d   # the web app and the worker in Docker; the first run installs dependencies
 ```
 
-Then run everything (web on http://localhost:5173, worker polling the local queue):
+| Open | What it is |
+|---|---|
+| http://localhost:5173 | Vozia. Sign up with any email; local accounts need no confirmation. |
+| http://localhost:54323 | Supabase Studio: tables, auth users, storage buckets, SQL editor (try `select * from pgmq.q_dub_jobs`) |
+| http://localhost:54324 | Mailpit: every email the local Supabase sends, such as password resets |
+| http://localhost:54321 | Supabase API gateway (REST, Auth, Storage, Realtime) that the app calls |
+| `postgresql://postgres:postgres@localhost:54322/postgres` | Postgres, for psql, DBeaver or TablePlus |
 
-```bash
-pnpm dev
-```
+Create a dub from a YouTube link or an upload and watch it move through the stages. With the default fake
+drivers the worker writes placeholder files, so thumbnails and the player stay empty; that is expected
+until you switch to the real providers (below).
 
-Sign up, create a dub from a YouTube link or an upload, and watch it move through the stages. With the
-default fake drivers the worker produces placeholder files, so the player will not show a real video —
-that is expected until you switch drivers to the real providers.
+- `docker compose logs -f worker` follows the dubbing jobs; `docker compose ps` lists the containers.
+- Code changes reload on their own: Vite hot-reloads the web app, `tsx watch` restarts the worker and the
+  `packages` container rebuilds `packages/shared` and `packages/db`.
+- `docker compose down` and `supabase stop` shut everything down; data survives in Docker volumes.
+  `supabase db reset` wipes the local database and re-applies the migrations.
 
-The worker loads its `.env` only through your shell: run `set -a; source apps/worker/.env; set +a`
-before `pnpm --filter @vozia/worker dev`, or let `pnpm dev` inherit the variables you exported.
+Without Docker for the apps: `pnpm install`, copy `apps/web/.env.example` and `apps/worker/.env.example`
+to `.env` with the keys from `supabase status`, load the worker's variables with
+`set -a; source apps/worker/.env; set +a`, then `pnpm dev`.
 
 ## Going live: drivers and keys
 
@@ -97,12 +99,15 @@ In `NODE_ENV=production` the defaults switch to the real implementations; otherw
 | `VOZIA_STORAGE_DRIVER` | `fake` · `supabase` | `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` |
 
 The worker validates the selected drivers' settings and binaries at boot and refuses to start with a
-clear message when something is missing. `apps/worker/.env.example` lists every variable.
+clear message when something is missing. `apps/worker/.env.example` lists every variable. With Docker,
+copy it to `apps/worker/.env`, fill in keys and drivers, and run `docker compose up -d worker`; the
+container already has ffmpeg and yt-dlp, and `compose.yaml` keeps pointing it at the local Supabase.
 
 - **Google sign-in.** Create an OAuth client in Google Cloud (Web application) with the redirect URI
   `https://<project-ref>.supabase.co/auth/v1/callback` (hosted) or `http://127.0.0.1:54321/auth/v1/callback`
   (local). Hosted: enable the Google provider in the Supabase dashboard and paste the client id/secret.
-  Local: put them in `supabase/.env` (see `supabase/.env.example`).
+  Local: put them in `supabase/.env` (see `supabase/.env.example`), then `supabase stop && supabase start`.
+  Until then the local Google button fails at Google, because the provider has no client id.
 - **Uploads.** The `sources` bucket accepts mp4/mov/webm/mkv; raise the project's global file size limit
   in the Storage settings (free plans default to 50 MB) — the browser uploads with resumable TUS.
 - **Replicate Demucs.** Pick a two-stem Demucs version on replicate.com (inputs `audio` + `stem: "vocals"`,
@@ -130,7 +135,8 @@ clear message when something is missing. `apps/worker/.env.example` lists every 
 ## Testing
 
 ```bash
-pnpm turbo typecheck lint test build   # all packages (145+ unit tests, fake providers)
+docker compose run --rm web pnpm turbo typecheck lint test build   # all packages, inside Docker
+pnpm turbo typecheck lint test build   # the same on your machine (145+ unit tests, fake providers)
 pnpm db:test                           # migrations + SQL tests in a supabase/postgres Docker container
 pnpm db:test --with-worker             # …plus the worker's Postgres/pgmq integration test
 ```
