@@ -69,8 +69,8 @@ docker compose up -d   # the web app and the worker in Docker; the first run ins
 | `postgresql://postgres:postgres@localhost:54322/postgres` | Postgres, for psql, DBeaver or TablePlus |
 
 Create a dub from a YouTube link or an upload and watch it move through the stages. With the default fake
-drivers the worker writes placeholder files, so thumbnails and the player stay empty; that is expected
-until you switch to the real providers (below).
+drivers the worker writes placeholder files, so thumbnails show a broken image and the player never
+starts; that is expected until you switch to the real providers (below).
 
 - `docker compose logs -f worker` follows the dubbing jobs; `docker compose ps` lists the containers.
 - Code changes reload on their own: Vite hot-reloads the web app, `tsx watch` restarts the worker and the
