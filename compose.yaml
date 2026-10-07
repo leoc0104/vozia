@@ -19,7 +19,9 @@ x-dev: &dev
     - db_node_modules:/app/packages/db/node_modules
     - pnpm_store:/home/node/.local/share/pnpm
 
-x-after-install: &after-install
+# Long-running services wait for the install and, like the Supabase containers, come back after a reboot.
+x-service: &service
+  restart: unless-stopped
   depends_on:
     install: { condition: service_completed_successfully }
 
@@ -31,11 +33,11 @@ services:
 
   # Rebuilds packages/shared and packages/db on change, so the web app and the worker reload with them.
   packages:
-    <<: [*dev, *after-install]
+    <<: [*dev, *service]
     command: pnpm --filter "./packages/**" --parallel dev
 
   web:
-    <<: [*dev, *after-install]
+    <<: [*dev, *service]
     command: pnpm --filter @vozia/web exec vite --host 0.0.0.0 --strictPort
     ports: ["5173:5173"]
     environment:
@@ -44,7 +46,7 @@ services:
       VITE_SUPABASE_ANON_KEY: *anon-key
 
   worker:
-    <<: [*dev, *after-install]
+    <<: [*dev, *service]
     build: { context: ., dockerfile: Dockerfile.dev, target: worker }
     command: pnpm --filter @vozia/worker dev
     # Optional provider keys and driver choices (see apps/worker/.env.example); the connection settings below win.
