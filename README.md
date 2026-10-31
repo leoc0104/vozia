@@ -63,6 +63,7 @@ docker compose up -d   # the web app and the worker in Docker; the first run ins
 | Open | What it is |
 |---|---|
 | http://localhost:5173 | Vozia. Sign up with any email; local accounts need no confirmation. |
+| http://localhost:5173/design-system | The design system, live: logo, color, type, motion and every component in both themes |
 | http://localhost:54323 | Supabase Studio: tables, auth users, storage buckets, SQL editor (try `select * from pgmq.q_dub_jobs`) |
 | http://localhost:54324 | Mailpit: every email the local Supabase sends, such as password resets |
 | http://localhost:54321 | Supabase API gateway (REST, Auth, Storage, Realtime) that the app calls |
