@@ -115,8 +115,8 @@ function Choices() {
     <div className="space-y-6">
       <RadioCardGroup aria-label="Voice" value={voice} onValueChange={setVoice} className="grid-cols-1 gap-3 sm:grid-cols-2">
         {[
-          ['clone', 'Selected look', 'The signal marks the current choice.'],
-          ['stock', 'Unselected look', 'Click to compare the two.'],
+          ['clone', 'Option one', 'The signal marks the current choice.'],
+          ['stock', 'Option two', 'Click to compare the two looks.'],
         ].map(([value, title, body]) => (
           <RadioCardItem key={value} value={value!}>
             <div className="flex items-start gap-3">
