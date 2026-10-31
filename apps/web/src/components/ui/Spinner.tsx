@@ -1,12 +1,10 @@
-import { LoaderCircle } from 'lucide-react'
 import { cx } from '../../lib/utils'
+import { Levels } from '../Levels'
 
 export function Spinner({ className }: { className?: string }) {
   return (
-    <LoaderCircle
-      role="status"
-      aria-label="Loading"
-      className={cx('animate-spin text-gray-400 dark:text-gray-600', className ?? 'size-5')}
-    />
+    <span role="status" aria-label="Loading" className={cx('inline-flex text-gray-500 dark:text-gray-400', className ?? 'size-5')}>
+      <Levels bars={4} animated className="size-full" />
+    </span>
   )
 }

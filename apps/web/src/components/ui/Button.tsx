@@ -2,9 +2,9 @@
 
 import React from 'react'
 import { Slot } from '@radix-ui/react-slot'
-import { LoaderCircle } from 'lucide-react'
 import { tv, type VariantProps } from 'tailwind-variants'
 import { cx, focusRing } from '../../lib/utils'
+import { Levels } from '../Levels'
 
 const buttonVariants = tv({
   base: [
@@ -21,24 +21,38 @@ const buttonVariants = tv({
         // border
         'border-transparent',
         // text color
-        'text-white dark:text-white',
+        'text-white dark:text-gray-950',
         // background color
-        'bg-brand-600 dark:bg-brand-600',
+        'bg-gray-950 dark:bg-gray-50',
         // hover color
-        'hover:bg-brand-700 dark:hover:bg-brand-500',
+        'hover:bg-gray-800 dark:hover:bg-white',
         // disabled
-        'disabled:bg-brand-300 disabled:text-white',
-        'dark:disabled:bg-brand-800 dark:disabled:text-brand-400',
+        'disabled:bg-gray-200 disabled:text-gray-500',
+        'dark:disabled:bg-gray-800 dark:disabled:text-gray-400',
+      ],
+      // The signal color, for the one action that matters most on a page.
+      accent: [
+        // border
+        'border-transparent',
+        // text color
+        'text-gray-950',
+        // background color
+        'bg-brand-500',
+        // hover color
+        'hover:bg-brand-400',
+        // disabled
+        'disabled:bg-brand-200 disabled:text-gray-500',
+        'dark:disabled:bg-brand-950 dark:disabled:text-brand-700',
       ],
       secondary: [
         // border
-        'border-gray-300 dark:border-gray-800',
+        'border-gray-300 dark:border-gray-700',
         // text color
         'text-gray-900 dark:text-gray-50',
         // background color
-        'bg-white dark:bg-gray-950',
+        'bg-white dark:bg-gray-900',
         // hover color
-        'hover:bg-gray-50 dark:hover:bg-gray-900/60',
+        'hover:bg-gray-50 dark:hover:bg-gray-800',
         // disabled
         'disabled:text-gray-400',
         'dark:disabled:text-gray-600',
@@ -51,9 +65,9 @@ const buttonVariants = tv({
         // text color
         'text-gray-900 dark:text-gray-50',
         // background color
-        'bg-gray-200 dark:bg-gray-900',
+        'bg-gray-100 dark:bg-gray-800',
         // hover color
-        'hover:bg-gray-300/70 dark:hover:bg-gray-800/80',
+        'hover:bg-gray-200 dark:hover:bg-gray-700',
         // disabled
         'disabled:bg-gray-100 disabled:text-gray-400',
         'dark:disabled:bg-gray-800 dark:disabled:text-gray-600',
@@ -77,12 +91,12 @@ const buttonVariants = tv({
         // border
         'border-transparent',
         // background color
-        'bg-red-600 dark:bg-red-700',
+        'bg-danger-600 dark:bg-danger-700',
         // hover color
-        'hover:bg-red-700 dark:hover:bg-red-600',
+        'hover:bg-danger-700 dark:hover:bg-danger-600',
         // disabled
-        'disabled:bg-red-300 disabled:text-white',
-        'dark:disabled:bg-red-950 dark:disabled:text-red-400',
+        'disabled:bg-danger-300 disabled:text-white',
+        'dark:disabled:bg-danger-950 dark:disabled:text-danger-400',
       ],
     },
     size: {
@@ -121,7 +135,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       >
         {isLoading ? (
           <span className="pointer-events-none flex shrink-0 items-center justify-center gap-1.5">
-            <LoaderCircle className="size-4 shrink-0 animate-spin" aria-hidden="true" />
+            <Levels bars={4} animated className="size-4 shrink-0" />
             <span className="sr-only">{loadingText ?? 'Loading'}</span>
             {loadingText ?? children}
           </span>

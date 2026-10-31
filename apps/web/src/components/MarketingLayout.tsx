@@ -25,9 +25,11 @@ export function MarketingLayout({ children }: { children: ReactNode }) {
         </nav>
       </header>
       <main>{children}</main>
-      <footer className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 border-t border-gray-100 px-4 py-8 text-sm text-gray-500 sm:px-6 dark:border-gray-900 dark:text-gray-500">
-        <span>© {new Date().getFullYear()} Vozia. Dub your videos in your own voice.</span>
-        <ThemeSwitcher className="sm:hidden" />
+      <footer className="border-t border-gray-200 dark:border-gray-800">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-8 text-sm text-gray-500 sm:px-6 dark:text-gray-400">
+          <span>© {new Date().getFullYear()} Vozia. Dub your videos in your own voice.</span>
+          <ThemeSwitcher className="sm:hidden" />
+        </div>
       </footer>
     </div>
   )

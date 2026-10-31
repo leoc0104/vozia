@@ -52,11 +52,11 @@ export function VideoDetailPage() {
     <div className="space-y-8">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
-          <Link to="/app" className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-300">
+          <Link to="/app" className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300">
             ← Library
           </Link>
-          <h1 className="mt-1 break-words text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-50">{v.title}</h1>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-500">
+          <h1 className="mt-1 break-words text-2xl font-semibold text-gray-900 dark:text-gray-50">{v.title}</h1>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
             {v.source_type === 'youtube' ? 'YouTube' : 'Upload'} · {formatDuration(v.duration_seconds)} · added {formatDate(v.created_at)}
           </p>
         </div>
@@ -68,7 +68,7 @@ export function VideoDetailPage() {
           </Button>
           <ConfirmDialog
             trigger={
-              <Button variant="destructive">
+              <Button variant="secondary">
                 <Trash2 className="size-4" aria-hidden="true" /> Delete
               </Button>
             }

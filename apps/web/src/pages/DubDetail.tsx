@@ -76,11 +76,11 @@ export function DubDetailPage() {
           <Link
             to="/app/videos/$videoId"
             params={{ videoId: d.video_id }}
-            className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-500 dark:hover:text-gray-300"
+            className="text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300"
           >
             ← {title}
           </Link>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-50">{language} dub</h1>
+          <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-50">{language} dub</h1>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <Badge variant={badgeVariantForStatus(d.status)}>{statusLabel(d.status)}</Badge>
             <Badge variant="neutral">{d.voice_mode === 'clone' ? 'Cloned voice' : 'Stock voice'}</Badge>
@@ -95,7 +95,7 @@ export function DubDetailPage() {
           ) : null}
           <ConfirmDialog
             trigger={
-              <Button variant="destructive">
+              <Button variant="secondary">
                 <Trash2 className="size-4" aria-hidden="true" /> Delete
               </Button>
             }

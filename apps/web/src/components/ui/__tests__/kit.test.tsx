@@ -34,7 +34,7 @@ describe('Button', () => {
       </>,
     )
     expect(screen.getByRole('button', { name: 'Big' }).className).toContain('h-11')
-    expect(screen.getByRole('button', { name: 'Remove' }).className).toContain('bg-red-600')
+    expect(screen.getByRole('button', { name: 'Remove' }).className).toContain('bg-danger-600')
   })
 })
 
@@ -70,7 +70,7 @@ describe('Callout', () => {
 })
 
 describe('Badge', () => {
-  it('uses the brand colour by default and blue for info', () => {
+  it('uses the brand colour by default and the info scale for info', () => {
     render(
       <>
         <Badge>Brand</Badge>
@@ -78,7 +78,15 @@ describe('Badge', () => {
       </>,
     )
     expect(screen.getByText('Brand').className).toContain('bg-brand-50')
-    expect(screen.getByText('Info').className).toContain('bg-blue-50')
+    expect(screen.getByText('Info').className).toContain('bg-info-50')
+  })
+
+  it('shows moving voice levels only on a live badge', () => {
+    const { container, rerender } = render(<Badge variant="neutral">Queued</Badge>)
+    expect(container.querySelector('[data-levels]')).not.toBeInTheDocument()
+    rerender(<Badge variant="live">Translating</Badge>)
+    expect(screen.getByText('Translating')).toBeInTheDocument()
+    expect(container.querySelector('[data-levels]')).toBeInTheDocument()
   })
 })
 

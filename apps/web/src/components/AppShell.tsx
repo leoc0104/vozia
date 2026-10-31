@@ -41,7 +41,7 @@ export function AppShell() {
             <ThemeSwitcher className="hidden sm:inline-flex" />
             {minutesLeft !== null ? (
               <Link to="/app/settings" className={cx('rounded-md', focusRing)}>
-                <Badge variant={minutesLeft > 0 ? 'default' : 'error'}>{minutesLeft} min left</Badge>
+                <Badge variant={minutesLeft > 0 ? 'neutral' : 'error'}>{minutesLeft} min left</Badge>
               </Link>
             ) : null}
             <Button asChild size="sm">

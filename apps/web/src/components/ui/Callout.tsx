@@ -5,7 +5,7 @@ import { tv, type VariantProps } from 'tailwind-variants'
 import { cx } from '../../lib/utils'
 
 const calloutVariants = tv({
-  base: 'flex flex-col overflow-hidden rounded-md p-4 text-sm',
+  base: 'flex flex-col overflow-hidden rounded-lg p-4 text-sm',
   variants: {
     variant: {
       default: [
@@ -16,21 +16,21 @@ const calloutVariants = tv({
       ],
       success: [
         // text color
-        'text-emerald-900 dark:text-emerald-500',
+        'text-success-900 dark:text-success-500',
         // background color
-        'bg-emerald-50 dark:bg-emerald-950/70',
+        'bg-success-50 dark:bg-success-950/70',
       ],
       error: [
         // text color
-        'text-red-900 dark:text-red-500',
+        'text-danger-900 dark:text-danger-500',
         // background color
-        'bg-red-50 dark:bg-red-950/70',
+        'bg-danger-50 dark:bg-danger-950/70',
       ],
       warning: [
         // text color
-        'text-yellow-900 dark:text-yellow-500',
+        'text-warning-900 dark:text-warning-500',
         // background color
-        'bg-yellow-50 dark:bg-yellow-950/70',
+        'bg-warning-50 dark:bg-warning-950/70',
       ],
       neutral: [
         // text color

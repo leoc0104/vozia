@@ -16,7 +16,7 @@ const selectNativeStyles = tv({
     // text color
     'text-gray-900 dark:text-gray-50',
     // placeholder color
-    'placeholder-gray-400 dark:placeholder-gray-500',
+    'placeholder-gray-500 dark:placeholder-gray-400',
     // hover
     'hover:bg-gray-50 dark:hover:bg-gray-950/50',
     // disabled
@@ -45,7 +45,7 @@ const SelectNative = React.forwardRef<HTMLSelectElement, SelectNativeProps>(
         {/* appearance-none hides the native arrow, so draw one */}
         <ChevronDown
           aria-hidden="true"
-          className="pointer-events-none absolute right-2.5 top-1/2 size-4 -translate-y-1/2 text-gray-400 dark:text-gray-600"
+          className="pointer-events-none absolute right-2.5 top-1/2 size-4 -translate-y-1/2 text-gray-500 dark:text-gray-400"
         />
       </div>
     )

@@ -14,7 +14,7 @@ export function SettingsPage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-8">
-      <h1 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-50">Settings</h1>
+      <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-50">Settings</h1>
 
       <Card className="space-y-4">
         <h2 className={cardTitle}>Dubbing minutes</h2>
@@ -22,7 +22,7 @@ export function SettingsPage() {
           <span className="font-medium text-gray-900 dark:text-gray-50">{used}</span> of {quota} minutes used
         </p>
         <ProgressBar value={quota > 0 ? (used / quota) * 100 : 0} aria-label="Minutes used" />
-        <p className="text-xs text-gray-500 dark:text-gray-500">
+        <p className="text-xs text-gray-500 dark:text-gray-400">
           Need more?{' '}
           <Link to="/pricing" className="font-medium text-brand-600 hover:underline dark:text-brand-400">
             See plans

@@ -50,14 +50,14 @@ function getVariantStyles(tabVariant: TabsListVariant) {
         // base
         '-mb-px items-center justify-center whitespace-nowrap border-b-2 border-transparent px-3 pb-2 text-sm font-medium transition-all',
         // text color
-        'text-gray-500 dark:text-gray-500',
+        'text-gray-500 dark:text-gray-400',
         // hover
-        'hover:text-gray-700 dark:hover:text-gray-400',
+        'hover:text-gray-700 dark:hover:text-gray-200',
         // border hover
         'hover:border-gray-300 dark:hover:border-gray-400',
         // selected
-        'data-[state=active]:border-brand-500 data-[state=active]:text-brand-600',
-        'dark:data-[state=active]:border-brand-500 dark:data-[state=active]:text-brand-400',
+        'data-[state=active]:border-gray-900 data-[state=active]:text-gray-900',
+        'dark:data-[state=active]:border-gray-50 dark:data-[state=active]:text-gray-50',
         // disabled
         'data-disabled:pointer-events-none',
         'data-disabled:text-gray-300 dark:data-disabled:text-gray-700',

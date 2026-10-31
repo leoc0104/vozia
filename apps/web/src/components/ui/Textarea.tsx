@@ -22,7 +22,7 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
           // background color
           'bg-white dark:bg-gray-950',
           // placeholder color
-          'placeholder-gray-400 dark:placeholder-gray-500',
+          'placeholder-gray-500 dark:placeholder-gray-400',
           // disabled
           'disabled:border-gray-300 disabled:bg-gray-100 disabled:text-gray-300',
           'dark:disabled:border-gray-700 dark:disabled:bg-gray-800 dark:disabled:text-gray-500',

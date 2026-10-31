@@ -14,7 +14,7 @@ const inputStyles = tv({
     // text color
     'text-gray-900 dark:text-gray-50',
     // placeholder color
-    'placeholder-gray-400 dark:placeholder-gray-500',
+    'placeholder-gray-500 dark:placeholder-gray-400',
     // background color
     'bg-white dark:bg-gray-950',
     // disabled
@@ -22,7 +22,7 @@ const inputStyles = tv({
     'dark:disabled:border-gray-700 dark:disabled:bg-gray-800 dark:disabled:text-gray-500',
     // file
     [
-      'file:-my-2 file:-ml-2.5 file:cursor-pointer file:rounded-l-[5px] file:rounded-r-none file:border-0 file:px-3 file:py-2 file:outline-hidden focus:outline-hidden disabled:pointer-events-none',
+      'file:-my-2 file:-ml-2.5 file:cursor-pointer file:rounded-l-[7px] file:rounded-r-none file:border-0 file:px-3 file:py-2 file:outline-hidden focus:outline-hidden disabled:pointer-events-none',
       'file:border-solid file:border-gray-300 file:bg-gray-50 file:text-gray-500 file:hover:bg-gray-100 dark:file:border-gray-800 dark:file:bg-gray-950 dark:file:hover:bg-gray-900/20',
       'file:[border-inline-end-width:1px] file:[margin-inline-end:0.75rem]',
     ],
@@ -75,7 +75,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
               // base
               'pointer-events-none absolute bottom-0 left-2 flex h-full items-center justify-center',
               // text color
-              'text-gray-400 dark:text-gray-600',
+              'text-gray-500 dark:text-gray-400',
             )}
           >
             <Search className="size-[1.125rem] shrink-0" aria-hidden="true" />
@@ -89,9 +89,9 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
                 // base
                 'h-fit w-fit rounded-xs outline-hidden transition-all',
                 // text
-                'text-gray-400 dark:text-gray-600',
+                'text-gray-500 dark:text-gray-400',
                 // hover
-                'hover:text-gray-500 dark:hover:text-gray-500',
+                'hover:text-gray-700 dark:hover:text-gray-300',
                 focusRing,
               )}
               type="button"

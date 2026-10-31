@@ -85,13 +85,13 @@ export function NewDubPage() {
   return (
     <form onSubmit={onSubmit} className="mx-auto max-w-2xl space-y-8" noValidate>
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-50">
+        <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-50">
           {existingVideoId ? 'Add a language' : 'New dub'}
         </h1>
         {existingVideoId ? (
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-500">Adding a dub to {existingVideo.data?.title ?? 'this video'}.</p>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Adding a dub to {existingVideo.data?.title ?? 'this video'}.</p>
         ) : (
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-500">
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
             Upload a video or paste a YouTube link, then choose the language and voice.
           </p>
         )}

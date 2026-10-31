@@ -20,7 +20,7 @@ export function AuthLayout({
       <Logo />
       <Card className="mt-6 w-full max-w-md p-6 sm:p-8">
         <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-50">{title}</h1>
-        {subtitle ? <p className="mt-1 text-sm text-gray-500 dark:text-gray-500">{subtitle}</p> : null}
+        {subtitle ? <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{subtitle}</p> : null}
         <div className="mt-6">{children}</div>
       </Card>
       {footer ? <p className="mt-4 text-sm text-gray-600 dark:text-gray-400">{footer}</p> : null}

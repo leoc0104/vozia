@@ -9,6 +9,6 @@ describe('cx', () => {
   it('exposes brand-coloured focus helpers', () => {
     expect(focusRing.join(' ')).toContain('outline-brand-500')
     expect(focusInput.join(' ')).toContain('focus:border-brand-500')
-    expect(hasErrorInput.join(' ')).toContain('border-red-500')
+    expect(hasErrorInput.join(' ')).toContain('border-danger-500')
   })
 })

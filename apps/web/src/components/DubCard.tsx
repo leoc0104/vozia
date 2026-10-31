@@ -13,7 +13,7 @@ export function DubCard({ dub }: { dub: DubSummary }) {
         <div className="flex items-center justify-between gap-3">
           <div className="min-w-0">
             <h3 className="truncate text-sm font-semibold text-gray-900 dark:text-gray-50">{languageLabel(dub.target_language)}</h3>
-            <p className="text-xs text-gray-500 dark:text-gray-500">{formatDate(dub.created_at)}</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">{formatDate(dub.created_at)}</p>
           </div>
           <Badge variant={badgeVariantForStatus(dub.status)}>{statusLabel(dub.status)}</Badge>
         </div>

@@ -12,7 +12,7 @@ export function LibraryPage() {
   return (
     <div>
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold tracking-tight text-gray-900 dark:text-gray-50">Library</h1>
+        <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-50">Library</h1>
       </div>
       {videos.isPending ? (
         <div className="flex justify-center py-20">

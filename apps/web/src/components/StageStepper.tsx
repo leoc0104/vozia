@@ -2,6 +2,7 @@ import { Check, X } from 'lucide-react'
 import type { DubStatus, Pipeline } from '@vozia/shared'
 import { statusLabel, stepStates } from '../lib/status-ui'
 import { cx } from '../lib/utils'
+import { Levels } from './Levels'
 import { ProgressBar } from './ui'
 
 export function StageStepper({
@@ -17,7 +18,7 @@ export function StageStepper({
 }) {
   const resolved = pipeline ?? 'staged'
   if (status === 'queued') {
-    return <p className="text-sm text-gray-500 dark:text-gray-500">Waiting for a worker to pick this up…</p>
+    return <p className="text-sm text-gray-500 dark:text-gray-400">Waiting for a worker to pick this up…</p>
   }
   if (resolved === 'elevenlabs') {
     return (
@@ -35,20 +36,22 @@ export function StageStepper({
           <span
             className={cx(
               'grid size-6 shrink-0 place-items-center rounded-full text-xs font-semibold',
-              state === 'done' && 'bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-400',
-              state === 'current' && 'bg-brand-600 text-white',
-              state === 'failed' && 'bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-400',
-              state === 'pending' && 'bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-500',
+              state === 'done' && 'bg-success-100 text-success-700 dark:bg-success-500/15 dark:text-success-400',
+              state === 'current' && 'bg-brand-500 text-gray-950',
+              state === 'failed' && 'bg-danger-100 text-danger-700 dark:bg-danger-500/15 dark:text-danger-400',
+              state === 'pending' && 'bg-gray-100 text-gray-400 dark:bg-gray-800 dark:text-gray-400',
             )}
             aria-hidden="true"
           >
-            {state === 'done' ? <Check className="size-3.5" /> : state === 'failed' ? <X className="size-3.5" /> : null}
+            {state === 'done' ? <Check className="size-3.5" /> : null}
+            {state === 'failed' ? <X className="size-3.5" /> : null}
+            {state === 'current' ? <Levels bars={3} animated className="size-3" /> : null}
           </span>
           <div className="min-w-0 flex-1">
             <p
               className={cx(
                 'text-sm',
-                state === 'pending' ? 'text-gray-400 dark:text-gray-500' : 'font-medium text-gray-800 dark:text-gray-200',
+                state === 'pending' ? 'text-gray-500 dark:text-gray-400' : 'font-medium text-gray-800 dark:text-gray-200',
               )}
             >
               {statusLabel(stage)}

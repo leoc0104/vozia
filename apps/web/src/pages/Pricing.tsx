@@ -28,7 +28,7 @@ export function PricingPage() {
   return (
     <MarketingLayout>
       <section className="mx-auto max-w-6xl px-4 py-16 sm:px-6">
-        <h1 className="text-3xl font-bold tracking-tight text-gray-900 sm:text-4xl dark:text-gray-50">Simple, minute-based pricing</h1>
+        <h1 className="text-3xl font-semibold text-gray-900 sm:text-4xl dark:text-gray-50">Simple, minute-based pricing</h1>
         <p className="mt-3 max-w-2xl text-gray-600 dark:text-gray-400">Start free. Upgrade when your library grows.</p>
         <div className="mt-10 grid gap-6 md:grid-cols-3">
           {PLANS.map((plan) => {
@@ -39,9 +39,9 @@ export function PricingPage() {
                   <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-50">{plan.name}</h2>
                   {featured ? <Badge>Most popular</Badge> : null}
                 </div>
-                <p className="mt-2 text-3xl font-bold text-gray-900 dark:text-gray-50">
+                <p className="mt-2 text-3xl font-semibold text-gray-900 dark:text-gray-50">
                   ${plan.priceUsd}
-                  <span className="text-base font-normal text-gray-500 dark:text-gray-500">/month</span>
+                  <span className="text-base font-normal text-gray-500 dark:text-gray-400">/month</span>
                 </p>
                 <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{plan.minutesPerMonth} dubbing minutes</p>
                 <ul className="mt-5 flex-1 space-y-2 text-sm text-gray-700 dark:text-gray-300">

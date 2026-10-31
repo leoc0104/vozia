@@ -17,11 +17,11 @@ export function Field({ label, htmlFor, hint, error, children }: FieldProps) {
       </Label>
       {children}
       {error ? (
-        <p className="text-sm text-red-600 dark:text-red-500" role="alert">
+        <p className="text-sm text-danger-600 dark:text-danger-500" role="alert">
           {error}
         </p>
       ) : hint ? (
-        <p className="text-xs text-gray-500 dark:text-gray-500">{hint}</p>
+        <p className="text-xs text-gray-500 dark:text-gray-400">{hint}</p>
       ) : null}
     </div>
   )
