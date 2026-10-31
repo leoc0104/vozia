@@ -17,12 +17,14 @@ export function TranscriptTable({ segments, sourceLabel, targetLabel }: { segmen
           <TableBody>
             {segments.map((segment) => (
               <TableRow key={segment.id} className="align-top">
-                <TableCell className="whitespace-nowrap font-mono text-xs text-gray-500 dark:text-gray-500">
+                <TableCell className="whitespace-nowrap font-mono text-xs text-gray-500 dark:text-gray-400">
                   {formatDuration(segment.start_ms / 1000)}
                 </TableCell>
-                <TableCell className="break-words text-gray-800 dark:text-gray-200">{segment.text}</TableCell>
-                <TableCell className="break-words text-gray-800 dark:text-gray-200">
-                  {segment.translated_text ?? <span className="text-gray-400 dark:text-gray-500">…</span>}
+                <TableCell dir="auto" className="break-words text-gray-800 dark:text-gray-200">
+                  {segment.text}
+                </TableCell>
+                <TableCell dir="auto" className="break-words text-gray-800 dark:text-gray-200">
+                  {segment.translated_text ?? <span className="text-gray-400 dark:text-gray-400">…</span>}
                 </TableCell>
               </TableRow>
             ))}

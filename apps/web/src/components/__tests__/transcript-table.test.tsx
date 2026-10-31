@@ -27,4 +27,13 @@ describe('TranscriptTable', () => {
     expect(cell.className).toContain('break-words')
     expect(cell.closest('table')?.parentElement?.className).toContain('whitespace-normal')
   })
+
+  it('lets each line follow its own writing direction, so Arabic reads right to left', () => {
+    const arabic: DubSegmentRow[] = [
+      { id: 3, dub_id: 'd1', idx: 0, start_ms: 0, end_ms: 1500, speaker: null, text: 'مرحبا بكم', translated_text: 'Welcome' },
+    ]
+    render(<TranscriptTable segments={arabic} sourceLabel="Arabic" targetLabel="English" />)
+    expect(screen.getByRole('cell', { name: 'مرحبا بكم' })).toHaveAttribute('dir', 'auto')
+    expect(screen.getByRole('cell', { name: 'Welcome' })).toHaveAttribute('dir', 'auto')
+  })
 })
