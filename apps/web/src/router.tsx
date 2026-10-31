@@ -1,4 +1,4 @@
-import { Outlet, createRootRoute, createRoute, createRouter } from '@tanstack/react-router'
+import { Outlet, createRootRoute, createRoute, createRouter, lazyRouteComponent } from '@tanstack/react-router'
 import { z } from 'zod'
 import { AppShell } from './components/AppShell'
 import { redirectIfSignedIn, requireAuth } from './lib/auth-guard'
@@ -59,9 +59,17 @@ export const videoDetailRoute = createRoute({ getParentRoute: () => appRoute, pa
 export const dubDetailRoute = createRoute({ getParentRoute: () => appRoute, path: '/dubs/$dubId', component: DubDetailPage })
 export const settingsRoute = createRoute({ getParentRoute: () => appRoute, path: '/settings', component: SettingsPage })
 
+export const designSystemRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/design-system',
+  // Loaded on demand, so the design system page adds nothing to the app's main bundle.
+  component: lazyRouteComponent(() => import('./pages/design-system/DesignSystemPage'), 'DesignSystemPage'),
+})
+
 export const routeTree = rootRoute.addChildren([
   indexRoute,
   pricingRoute,
+  designSystemRoute,
   loginRoute,
   signupRoute,
   forgotPasswordRoute,
