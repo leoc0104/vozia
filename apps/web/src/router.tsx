@@ -66,10 +66,18 @@ export const designSystemRoute = createRoute({
   component: lazyRouteComponent(() => import('./pages/design-system/DesignSystemPage'), 'DesignSystemPage'),
 })
 
+export const designSystemNextRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/design-system/next',
+  // The proposed system, compared with today's. Its colors stay inside this page until it is approved.
+  component: lazyRouteComponent(() => import('./pages/design-system-next/DesignSystemNextPage'), 'DesignSystemNextPage'),
+})
+
 export const routeTree = rootRoute.addChildren([
   indexRoute,
   pricingRoute,
   designSystemRoute,
+  designSystemNextRoute,
   loginRoute,
   signupRoute,
   forgotPasswordRoute,

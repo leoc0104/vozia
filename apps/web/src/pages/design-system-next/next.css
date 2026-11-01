@@ -1,0 +1,93 @@
+/*
+ * The proposed "Same Voice" system, scoped to .system-next. Everything outside this class, including the
+ * rest of the app, keeps today's tokens from src/index.css. If the proposal is approved, these values move there.
+ */
+.system-next {
+  /* Subtitle yellow. Tailwind utilities read these variables, so real components repaint inside the scope. */
+  --color-brand-50: #fffbe6;
+  --color-brand-100: #fff6bf;
+  --color-brand-200: #ffee8a;
+  --color-brand-300: #ffe552;
+  --color-brand-400: #ffdc26;
+  --color-brand-500: #ffd400;
+  --color-brand-700: #7a6500;
+  --color-brand-800: #5c4c00;
+  --color-brand-900: #3d3300;
+  --color-brand-950: #2b2400;
+
+  /* Warning moves to orange, because yellow now means the voice. */
+  --color-warning-50: #fff7ed;
+  --color-warning-100: #ffedd5;
+  --color-warning-200: #fed7aa;
+  --color-warning-300: #fdba74;
+  --color-warning-400: #fb923c;
+  --color-warning-500: #f97316;
+  --color-warning-600: #ea580c;
+  --color-warning-700: #c2410c;
+  --color-warning-800: #9a3412;
+  --color-warning-900: #7c2d12;
+  --color-warning-950: #431407;
+
+  /* Yellow is only 1.4:1 on white, so on light surfaces ink takes over text, thin lines and small marks. */
+  --color-brand-600: var(--color-gray-950);
+  --next-strong: var(--color-gray-950);
+  --next-on-strong: var(--color-white);
+  --next-selected: var(--color-brand-50);
+  --next-live-bg: var(--color-brand-500);
+  --next-live-fg: var(--color-gray-950);
+  --next-link-line: underline;
+}
+
+/* On dark surfaces yellow can do all of those jobs itself. */
+.dark .system-next,
+.system-next.dark,
+.system-next .dark {
+  --color-brand-600: var(--color-brand-500);
+  --next-strong: var(--color-brand-500);
+  --next-on-strong: var(--color-gray-950);
+  --next-selected: rgb(255 212 0 / 0.08);
+  --next-live-bg: rgb(255 212 0 / 0.12);
+  --next-live-fg: var(--color-brand-400);
+  --next-link-line: none;
+}
+
+.system-next .light {
+  --color-brand-600: var(--color-gray-950);
+  --next-strong: var(--color-gray-950);
+  --next-on-strong: var(--color-white);
+  --next-selected: var(--color-brand-50);
+  --next-live-bg: var(--color-brand-500);
+  --next-live-fg: var(--color-gray-950);
+  --next-link-line: underline;
+}
+
+.system-next :focus-visible {
+  outline-color: var(--next-strong);
+}
+
+.system-next :is(input, select, textarea):focus {
+  border-color: var(--next-strong);
+}
+
+.system-next [role='radio'][data-state='checked'] {
+  border-color: var(--next-strong);
+  background-color: var(--next-selected);
+}
+
+.system-next [role='radio'] .size-1\.5.bg-white {
+  background-color: var(--next-on-strong);
+}
+
+/* Links on light surfaces: ink text with a marker line under it. */
+.system-next :is(a, button).text-brand-600 {
+  text-decoration-line: var(--next-link-line);
+  text-decoration-color: var(--color-brand-500);
+  text-decoration-thickness: 3px;
+  text-underline-offset: 3px;
+}
+
+.system-next span.ring-1:has(> [data-levels]) {
+  background-color: var(--next-live-bg);
+  color: var(--next-live-fg);
+  box-shadow: none;
+}
