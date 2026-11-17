@@ -72,10 +72,10 @@ describe('DubDetailPage', () => {
   it('shows live progress and the transcript for an in-progress dub', async () => {
     api.getDub.mockResolvedValue(baseDub)
     await renderApp('/app/dubs/d1', fake)
-    expect(await screen.findByRole('heading', { name: 'Portuguese dub' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Português' })).toBeInTheDocument()
     expect(screen.getAllByRole('listitem').map((li) => li.dataset.state)).toEqual(['done', 'done', 'done', 'current', 'pending', 'pending'])
     expect(await screen.findByText('Olá.')).toBeInTheDocument()
-    expect(screen.getByText('From English')).toBeInTheDocument()
+    expect(screen.getAllByText('English').some((name) => name.parentElement?.textContent === 'From English')).toBe(true)
   })
 
   it('explains failures and retries through the api', async () => {
@@ -99,7 +99,7 @@ describe('DubDetailPage', () => {
     await renderApp('/app/dubs/d1', fake)
     const download = await screen.findByRole('link', { name: /download video/i })
     await waitFor(() => expect(download).toHaveAttribute('href', 'https://signed.test/o/d1/dubbed.mp4?download=Launch_video-pt.mp4'))
-    expect(await screen.findByRole('link', { name: /portuguese subtitles/i })).toHaveAttribute('href', 'https://signed.test/o/d1/translated.srt?download=pt.srt')
+    expect(await screen.findByRole('link', { name: /subtitles in português/i })).toHaveAttribute('href', 'https://signed.test/o/d1/translated.srt?download=pt.srt')
     expect(screen.queryByRole('list', { name: 'Dubbing stages' })).not.toBeInTheDocument()
   })
 })

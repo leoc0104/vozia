@@ -3,8 +3,9 @@ import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { Download, FileText, RotateCcw, Trash2 } from 'lucide-react'
 import { BUCKETS } from '@vozia/db'
-import { languageLabel, type DubStatus } from '@vozia/shared'
+import { languageName, type DubStatus } from '@vozia/shared'
 import { ConfirmDialog } from '../components/ConfirmDialog'
+import { LanguageName } from '../components/LanguageName'
 import { StageStepper } from '../components/StageStepper'
 import { TranscriptTable } from '../components/TranscriptTable'
 import { Badge, Button, Callout, Card, Spinner } from '../components/ui'
@@ -23,7 +24,7 @@ export function DubDetailPage() {
   const [actionError, setActionError] = useState<string | null>(null)
 
   const title = video.data?.title ?? 'Video'
-  const language = dub.data ? languageLabel(dub.data.target_language) : ''
+  const language = dub.data ? languageName(dub.data.target_language) : ''
   const fileName = `${title.replace(/[^\w.-]+/g, '_')}-${dub.data?.target_language ?? 'dub'}.mp4`
   const playback = useSignedUrl(BUCKETS.outputs, dub.data?.output_path)
   const download = useSignedUrl(BUCKETS.outputs, dub.data?.output_path, fileName)
@@ -80,11 +81,17 @@ export function DubDetailPage() {
           >
             ← {title}
           </Link>
-          <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-50">{language} dub</h1>
+          <h1 className="mt-1 text-2xl font-semibold text-gray-900 dark:text-gray-50">
+            <LanguageName code={d.target_language} />
+          </h1>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <Badge variant={badgeVariantForStatus(d.status)}>{statusLabel(d.status)}</Badge>
             <Badge variant="neutral">{d.voice_mode === 'clone' ? 'Cloned voice' : 'Stock voice'}</Badge>
-            {d.detected_language ? <Badge variant="neutral">From {languageLabel(d.detected_language)}</Badge> : null}
+            {d.detected_language ? (
+              <Badge variant="neutral">
+                From <LanguageName code={d.detected_language} />
+              </Badge>
+            ) : null}
           </div>
         </div>
         <div className="flex gap-2">
@@ -149,7 +156,7 @@ export function DubDetailPage() {
             {srtTranslated.data ? (
               <Button asChild variant="secondary">
                 <a href={srtTranslated.data}>
-                  <FileText className="size-4" aria-hidden="true" /> {language} subtitles
+                  <FileText className="size-4" aria-hidden="true" /> Subtitles in <LanguageName code={d.target_language} />
                 </a>
               </Button>
             ) : null}
@@ -167,7 +174,7 @@ export function DubDetailPage() {
           <div className="mt-3">
             <TranscriptTable
               segments={segments.data}
-              sourceLabel={d.detected_language ? languageLabel(d.detected_language) : 'Original'}
+              sourceLabel={d.detected_language ? languageName(d.detected_language) : 'Original'}
               targetLabel={language}
             />
           </div>

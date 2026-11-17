@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { languageLabel } from '@vozia/shared'
 import type { VideoWithDubs } from '../lib/api'
 import { formatDate, formatDuration } from '../lib/format'
 import { badgeVariantForStatus } from '../lib/status-ui'
 import { cx, focusRing } from '../lib/utils'
+import { LanguageName } from './LanguageName'
 import { Levels } from './Levels'
 import { Badge, Card } from './ui'
 
@@ -36,7 +36,7 @@ export function VideoCard({ video, thumbnailUrl }: { video: VideoWithDubs; thumb
             {video.dubs.length === 0 ? <span className="text-xs text-gray-500 dark:text-gray-400">No dubs yet</span> : null}
             {video.dubs.map((dub) => (
               <Badge key={dub.id} variant={badgeVariantForStatus(dub.status)}>
-                {languageLabel(dub.target_language)}
+                <LanguageName code={dub.target_language} />
                 {dub.status !== 'completed' && dub.status !== 'failed' ? ` ${dub.progress}%` : dub.status === 'failed' ? ' · failed' : ''}
               </Badge>
             ))}

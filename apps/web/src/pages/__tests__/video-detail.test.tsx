@@ -45,7 +45,7 @@ describe('VideoDetailPage', () => {
     await renderApp('/app/videos/v1', fake)
     expect(await screen.findByRole('heading', { name: 'Launch video' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: /add language/i })).toHaveAttribute('href', '/app/new?videoId=v1')
-    expect(screen.getByText('Portuguese')).toBeInTheDocument()
+    expect(screen.getByText('Português')).toBeInTheDocument()
   })
 
   it('asks before deleting the video and returns to the library', async () => {

@@ -15,9 +15,10 @@ export function LanguageSelect({
   return (
     <SelectNative id={id} value={value ?? ''} onChange={(e) => onChange(e.target.value === '' ? null : e.target.value)}>
       {allowAuto ? <option value="">Auto-detect</option> : null}
-      {LANGUAGES.map((language) => (
-        <option key={language.code} value={language.code}>
-          {language.label}
+      {/* Each language by its own name, with the English one beside it, so a language you do not read is still easy to find. */}
+      {LANGUAGES.map(({ code, label, nativeName }) => (
+        <option key={code} value={code}>
+          {nativeName === label ? label : `${nativeName} · ${label}`}
         </option>
       ))}
     </SelectNative>

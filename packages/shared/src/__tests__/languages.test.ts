@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { LANGUAGES, isLanguageCode, languageLabel } from '../languages.js'
+import { LANGUAGES, isLanguageCode, languageDir, languageLabel, languageName } from '../languages.js'
 import { STOCK_VOICES, isStockVoiceId } from '../voices.js'
 import { FREE_MINUTES, PLANS, minutesToCharge } from '../plans.js'
 
@@ -15,6 +15,16 @@ describe('languages', () => {
     expect(isLanguageCode('xx')).toBe(false)
     expect(languageLabel('de')).toBe('German')
     expect(languageLabel('zz')).toBe('zz')
+  })
+
+  it('names each language in its own script and marks the ones written right to left', () => {
+    expect(LANGUAGES.every((l) => l.nativeName.trim().length > 0)).toBe(true)
+    expect(languageName('ja')).toBe('日本語')
+    expect(languageName('pt')).toBe('Português')
+    expect(languageName('zz')).toBe('zz')
+    expect(languageDir('ar')).toBe('rtl')
+    expect(languageDir('pt')).toBe('ltr')
+    expect(LANGUAGES.filter((l) => l.rtl).map((l) => l.code)).toEqual(['ar'])
   })
 })
 
