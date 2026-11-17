@@ -11,33 +11,66 @@ import {
 } from '../lib/logo-paths'
 import { cx, focusRing } from '../lib/utils'
 
-const SIGNAL = 'var(--color-brand-500)'
+const YELLOW = 'var(--color-brand-500)'
+const INK = 'var(--color-gray-950)'
+const PAPER = 'var(--color-gray-50)'
 
-/** The V and the capsule rising from it. `mono` draws both in currentColor, for one-color uses. */
-export function LogoMark({ className, mono = false }: { className?: string; mono?: boolean }) {
+function MarkStrokes({ v, capsule }: { v: string; capsule: string }) {
   return (
-    <svg
-      viewBox={MARK_VIEWBOX}
-      fill="none"
-      strokeWidth={MARK_STROKE}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      aria-hidden="true"
-    >
-      <path d={MARK_V} stroke="currentColor" />
-      <path d={MARK_CAPSULE} stroke={mono ? 'currentColor' : SIGNAL} />
+    <g fill="none" strokeWidth={MARK_STROKE} strokeLinecap="round" strokeLinejoin="round">
+      <path d={MARK_V} stroke={v} />
+      <path d={MARK_CAPSULE} stroke={capsule} />
+    </g>
+  )
+}
+
+/** The mark: the V and its capsule in ink on a yellow tile, the same in both themes. It is also the app icon and the favicon. */
+export function LogoMark({ className }: { className?: string }) {
+  return (
+    <svg viewBox={MARK_VIEWBOX} className={className} aria-hidden="true">
+      <rect width="32" height="32" rx="7.5" fill={YELLOW} />
+      <g transform="translate(4.8 4.8) scale(0.7)">
+        <MarkStrokes v={INK} capsule={INK} />
+      </g>
     </svg>
   )
 }
 
-/** "vozia" as outlines. `signal` puts the capsule on the i, for when the wordmark stands alone. */
-export function Wordmark({ className, signal = false }: { className?: string; signal?: boolean }) {
+/** The mark without its tile, only for surfaces that are already ink: a yellow capsule always sits on ink. */
+export function LogoMarkOnInk({ className }: { className?: string }) {
+  return (
+    <svg viewBox={MARK_VIEWBOX} className={className} aria-hidden="true">
+      <MarkStrokes v={PAPER} capsule={YELLOW} />
+    </svg>
+  )
+}
+
+/** The mark in one color (currentColor), for print, stamps or anything that cannot carry yellow. */
+export function LogoMarkMono({ className }: { className?: string }) {
+  return (
+    <svg viewBox={MARK_VIEWBOX} className={className} aria-hidden="true">
+      <MarkStrokes v="currentColor" capsule="currentColor" />
+    </svg>
+  )
+}
+
+/** "vozia" as outlines in currentColor. `capsule` turns the dot on the i into the yellow capsule, for dark surfaces only. */
+export function Wordmark({ className, capsule = false }: { className?: string; capsule?: boolean }) {
   return (
     <svg viewBox={WORDMARK_VIEWBOX} fill="currentColor" className={className} aria-hidden="true">
       <path d={WORDMARK_LETTERS} />
-      {signal ? <rect {...WORDMARK_CAPSULE} fill={SIGNAL} /> : <circle {...WORDMARK_DOT} />}
+      {capsule ? <rect {...WORDMARK_CAPSULE} fill={YELLOW} /> : <circle {...WORDMARK_DOT} />}
     </svg>
+  )
+}
+
+/** The wordmark standing alone: a plain ink dot on light surfaces, where yellow would vanish, and the yellow capsule on dark ones. */
+export function StandaloneWordmark({ className }: { className?: string }) {
+  return (
+    <span className="inline-flex text-gray-950 dark:text-gray-50">
+      <Wordmark className={cx('w-auto dark:hidden', className)} />
+      <Wordmark capsule className={cx('hidden w-auto dark:block', className)} />
+    </span>
   )
 }
 
@@ -46,7 +79,7 @@ const LOCKUPS = {
   lg: { mark: 'size-14', word: 'h-10', gap: 'gap-4' },
 }
 
-/** The full logo. The mark carries the signal, so the wordmark stays plain: one light per logo. */
+/** The full logo. The tile carries the yellow, so the wordmark stays plain and takes the text color. */
 export function LogoLockup({ size = 'md' }: { size?: keyof typeof LOCKUPS }) {
   const { mark, word, gap } = LOCKUPS[size]
   return (
@@ -54,25 +87,6 @@ export function LogoLockup({ size = 'md' }: { size?: keyof typeof LOCKUPS }) {
       <LogoMark className={mark} />
       <Wordmark className={cx(word, 'w-auto')} />
     </span>
-  )
-}
-
-/** The app icon: the mark on an ink tile, or on a signal tile. */
-export function AppIcon({ className, signal = false }: { className?: string; signal?: boolean }) {
-  return (
-    <svg viewBox={MARK_VIEWBOX} className={className} aria-hidden="true">
-      <rect width="32" height="32" rx="7.5" fill={signal ? SIGNAL : 'var(--color-gray-950)'} />
-      <g
-        transform="translate(5.6 5.6) scale(0.65)"
-        fill="none"
-        strokeWidth={MARK_STROKE}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      >
-        <path d={MARK_V} stroke={signal ? 'var(--color-gray-950)' : 'var(--color-gray-50)'} />
-        <path d={MARK_CAPSULE} stroke={signal ? 'var(--color-gray-50)' : SIGNAL} />
-      </g>
-    </svg>
   )
 }
 
