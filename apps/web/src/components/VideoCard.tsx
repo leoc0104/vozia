@@ -16,11 +16,11 @@ export function VideoCard({ video, thumbnailUrl }: { video: VideoWithDubs; thumb
   return (
     <Link to="/app/videos/$videoId" params={{ videoId: video.id }} className={cx('block h-full min-w-0 rounded-lg', focusRing)}>
       <Card className="h-full overflow-hidden p-0 transition-shadow hover:shadow-md">
-        <div className="aspect-video bg-gray-100 dark:bg-gray-800/60">
+        <div className={cx('aspect-video', hasThumbnail ? 'bg-gray-100 dark:bg-gray-800/60' : 'bg-brand-500 dark:bg-gray-800/60')}>
           {hasThumbnail ? (
             <img src={thumbnailUrl} alt="" onError={() => setFailedUrl(thumbnailUrl ?? null)} className="size-full object-cover" />
           ) : (
-            <div className="flex size-full items-center px-6 py-8 text-gray-300 dark:text-gray-700">
+            <div className="flex size-full items-center px-6 py-8 text-gray-950 dark:text-brand-500">
               <Levels seed={video.id} bars={32} className="size-full" />
             </div>
           )}

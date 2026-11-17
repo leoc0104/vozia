@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import type { VoiceMode } from '@vozia/shared'
 import { DubCard } from '../../components/DubCard'
-import { DubPreview } from '../../components/DubPreview'
+import { VoiceprintPanel } from '../../components/VoiceprintPanel'
 import { StageStepper } from '../../components/StageStepper'
 import { TranscriptTable } from '../../components/TranscriptTable'
 import { UploadDropzone } from '../../components/UploadDropzone'
@@ -77,7 +77,7 @@ export function ProductSection() {
       </Block>
       <Block title="Landing illustration" note="One timeline, with the original above and the dub below. It stays honest about what a dub is: same rhythm, new language.">
         <ThemePanes>
-          <DubPreview />
+          <VoiceprintPanel />
         </ThemePanes>
       </Block>
     </Section>

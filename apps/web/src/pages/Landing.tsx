@@ -1,7 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import { LANGUAGES } from '@vozia/shared'
-import { DubPreview } from '../components/DubPreview'
 import { MarketingLayout } from '../components/MarketingLayout'
+import { VoiceprintPanel } from '../components/VoiceprintPanel'
 import { Button } from '../components/ui'
 
 const steps = [
@@ -15,7 +15,7 @@ export function LandingPage() {
     <MarketingLayout>
       <section className="mx-auto grid max-w-6xl items-center gap-12 px-4 pb-20 pt-12 sm:px-6 sm:pt-20 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-brand-600 dark:text-brand-400">AI dubbing with voice cloning</p>
+          <p className="text-sm font-semibold uppercase tracking-wide text-gray-600 dark:text-gray-400">AI dubbing with voice cloning</p>
           <h1 className="mt-3 text-4xl font-semibold text-gray-900 sm:text-6xl dark:text-gray-50">
             Dub your videos into {LANGUAGES.length} languages — in your own voice.
           </h1>
@@ -32,7 +32,7 @@ export function LandingPage() {
             </Button>
           </div>
         </div>
-        <DubPreview />
+        <VoiceprintPanel />
       </section>
       <section className="border-t border-gray-200 bg-gray-50 dark:border-gray-800 dark:bg-gray-900/40">
         <div className="mx-auto grid max-w-6xl gap-8 px-4 py-16 sm:grid-cols-3 sm:px-6">
