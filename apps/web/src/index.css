@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /*
- * The Vozia design system tokens ("On Air"), documented live at /design-system.
+ * The Vozia design system tokens ("Same Voice"), documented live at /design-system.
  * Tailwind's default palette is removed, so only the colors below exist.
  */
 
@@ -14,18 +14,22 @@
   --color-white: #fff;
   --color-black: #000;
 
-  /* Signal: the recording light. Marks what is live. As text, use 600 on light surfaces and 400 on dark ones. */
-  --color-brand-50: #fff4ee;
-  --color-brand-100: #ffe6da;
-  --color-brand-200: #ffcab3;
-  --color-brand-300: #ffa582;
-  --color-brand-400: #ff7d4c;
-  --color-brand-500: #ff5a1f;
-  --color-brand-600: #ce3d0a;
-  --color-brand-700: #a5310a;
-  --color-brand-800: #84290d;
-  --color-brand-900: #6c2410;
-  --color-brand-950: #3b0f05;
+  /*
+   * Subtitle yellow: marks the voice itself (the voiceprint, the line being spoken, the language you chose).
+   * Use 500 for fills, always with ink on top. It is only 1.4:1 on white, so on light surfaces ink does text,
+   * thin lines and focus rings. On dark surfaces 400 and 500 can do those jobs themselves.
+   */
+  --color-brand-50: #fffbe6;
+  --color-brand-100: #fff6bf;
+  --color-brand-200: #ffee8a;
+  --color-brand-300: #ffe552;
+  --color-brand-400: #ffdc26;
+  --color-brand-500: #ffd400;
+  --color-brand-600: #b89a00;
+  --color-brand-700: #7a6500;
+  --color-brand-800: #5c4c00;
+  --color-brand-900: #3d3300;
+  --color-brand-950: #2b2400;
 
   /* Ink and paper: warm neutrals. As text, use 500 or darker on light surfaces and 400 or lighter on dark ones. */
   --color-gray-50: #fafaf8;
@@ -40,7 +44,7 @@
   --color-gray-900: #1a1917;
   --color-gray-950: #0f0e0d;
 
-  /* Status colors. Danger leans crimson so it never reads as the orange signal. */
+  /* Status colors. Warning is orange because yellow means the voice; danger leans crimson to stay apart from it. */
   --color-success-50: #ecfdf5;
   --color-success-100: #d1fae5;
   --color-success-200: #a7f3d0;
@@ -53,17 +57,17 @@
   --color-success-900: #064e3b;
   --color-success-950: #022c22;
 
-  --color-warning-50: #fefce8;
-  --color-warning-100: #fef9c3;
-  --color-warning-200: #fef08a;
-  --color-warning-300: #fde047;
-  --color-warning-400: #facc15;
-  --color-warning-500: #eab308;
-  --color-warning-600: #ca8a04;
-  --color-warning-700: #a16207;
-  --color-warning-800: #854d0e;
-  --color-warning-900: #713f12;
-  --color-warning-950: #422006;
+  --color-warning-50: #fff7ed;
+  --color-warning-100: #ffedd5;
+  --color-warning-200: #fed7aa;
+  --color-warning-300: #fdba74;
+  --color-warning-400: #fb923c;
+  --color-warning-500: #f97316;
+  --color-warning-600: #ea580c;
+  --color-warning-700: #c2410c;
+  --color-warning-800: #9a3412;
+  --color-warning-900: #7c2d12;
+  --color-warning-950: #431407;
 
   --color-danger-50: #fff1f2;
   --color-danger-100: #ffe4e6;

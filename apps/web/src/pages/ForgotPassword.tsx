@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Link } from '@tanstack/react-router'
+import { link } from '../lib/utils'
 import { AuthLayout } from '../components/AuthLayout'
 import { Button, Callout, Field, Input } from '../components/ui'
 import { useAuthStore } from '../stores/auth-store'
@@ -28,7 +29,7 @@ export function ForgotPasswordPage() {
       title="Reset your password"
       subtitle="We'll email you a link to choose a new one."
       footer={
-        <Link to="/login" className="font-medium text-brand-600 hover:underline dark:text-brand-400">
+        <Link to="/login" className={link}>
           Back to log in
         </Link>
       }

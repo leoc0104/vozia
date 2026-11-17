@@ -30,7 +30,7 @@ const buttonVariants = tv({
         'disabled:bg-gray-200 disabled:text-gray-500',
         'dark:disabled:bg-gray-800 dark:disabled:text-gray-400',
       ],
-      // The signal color, for the one action that matters most on a page.
+      // Yellow with ink on top, for the one action that matters most on a page.
       accent: [
         // border
         'border-transparent',

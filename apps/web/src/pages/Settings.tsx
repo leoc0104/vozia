@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Link } from '@tanstack/react-router'
+import { link } from '../lib/utils'
 import { ThemeSwitcher } from '../components/ThemeSwitcher'
 import { Button, Callout, Card, Field, Input, ProgressBar } from '../components/ui'
 import { updateProfile } from '../lib/api'
@@ -24,7 +25,7 @@ export function SettingsPage() {
         <ProgressBar value={quota > 0 ? (used / quota) * 100 : 0} aria-label="Minutes used" />
         <p className="text-xs text-gray-500 dark:text-gray-400">
           Need more?{' '}
-          <Link to="/pricing" className="font-medium text-brand-600 hover:underline dark:text-brand-400">
+          <Link to="/pricing" className={link}>
             See plans
           </Link>
         </p>

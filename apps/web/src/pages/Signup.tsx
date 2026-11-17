@@ -1,11 +1,12 @@
 import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from '@tanstack/react-router'
+import { link } from '../lib/utils'
 import { AuthLayout } from '../components/AuthLayout'
 import { GoogleButton } from '../components/GoogleButton'
 import { Button, Callout, Divider, Field, Input } from '../components/ui'
 import { useAuthStore } from '../stores/auth-store'
 
-const authLink = 'font-medium text-brand-600 hover:underline dark:text-brand-400'
+const authLink = link
 
 export function SignupPage() {
   const navigate = useNavigate()

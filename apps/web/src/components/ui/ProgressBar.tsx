@@ -13,7 +13,8 @@ const progressBarVariants = tv({
     variant: {
       default: {
         background: 'bg-gray-200 dark:bg-gray-800',
-        bar: 'bg-brand-600 dark:bg-brand-500',
+        // A thin line, so ink on light surfaces and yellow on dark ones.
+        bar: 'bg-gray-950 dark:bg-brand-500',
       },
       neutral: {
         background: 'bg-gray-200 dark:bg-gray-500/40',

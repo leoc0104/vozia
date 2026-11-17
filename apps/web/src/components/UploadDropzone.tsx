@@ -2,7 +2,7 @@ import { useRef, useState, type DragEvent } from 'react'
 import { UploadCloud } from 'lucide-react'
 import { ALLOWED_VIDEO_MIME } from '@vozia/shared'
 import { formatBytes } from '../lib/format'
-import { cx, focusRing } from '../lib/utils'
+import { cx, focusRing, link } from '../lib/utils'
 
 export function UploadDropzone({ file, onFile, error }: { file: File | null; onFile: (file: File | null) => void; error?: string | null }) {
   const inputRef = useRef<HTMLInputElement>(null)
@@ -27,13 +27,13 @@ export function UploadDropzone({ file, onFile, error }: { file: File | null; onF
         className={cx(
           'flex flex-col items-center justify-center rounded-lg border-2 border-dashed px-6 py-10 text-center transition-colors',
           dragging
-            ? 'border-brand-500 bg-brand-50 dark:bg-brand-500/10'
+            ? 'border-gray-950 bg-brand-50 dark:border-brand-500 dark:bg-brand-500/10'
             : error
               ? 'border-danger-400 bg-white dark:border-danger-700 dark:bg-gray-950'
               : 'border-gray-300 bg-white dark:border-gray-700 dark:bg-gray-950',
         )}
       >
-        <UploadCloud className="size-8 text-brand-600 dark:text-brand-400" aria-hidden="true" />
+        <UploadCloud className="size-8 text-gray-950 dark:text-brand-400" aria-hidden="true" />
         {file ? (
           <p className="mt-3 max-w-full truncate text-sm text-gray-800 dark:text-gray-200">
             <span className="font-medium">{file.name}</span>{' '}
@@ -45,7 +45,7 @@ export function UploadDropzone({ file, onFile, error }: { file: File | null; onF
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
-          className={cx('mt-2 rounded-md text-sm font-medium text-brand-600 hover:underline dark:text-brand-400', focusRing)}
+          className={cx('mt-2 rounded-md text-sm', link, focusRing)}
         >
           {file ? 'Choose a different file' : 'browse your files'}
         </button>

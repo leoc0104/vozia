@@ -13,10 +13,10 @@ const badgeVariants = tv({
         'bg-brand-50 text-brand-900 ring-brand-500/30',
         'dark:bg-brand-400/10 dark:text-brand-300 dark:ring-brand-400/30',
       ],
-      // Work in progress: the signal color with moving voice levels.
+      // A voice being made: solid yellow with ink on light surfaces, a yellow glow on dark ones, with moving bars.
       live: [
-        'bg-brand-50 text-brand-900 ring-brand-500/30',
-        'dark:bg-brand-400/10 dark:text-brand-300 dark:ring-brand-400/30',
+        'bg-brand-500 text-gray-950 ring-transparent',
+        'dark:bg-brand-500/12 dark:text-brand-400 dark:ring-brand-400/30',
       ],
       info: ['bg-info-50 text-info-900 ring-info-500/30', 'dark:bg-info-400/10 dark:text-info-400 dark:ring-info-400/30'],
       neutral: ['bg-gray-50 text-gray-900 ring-gray-500/30', 'dark:bg-gray-400/10 dark:text-gray-400 dark:ring-gray-400/20'],

@@ -34,7 +34,7 @@ export function PricingPage() {
           {PLANS.map((plan) => {
             const featured = plan.id === 'creator'
             return (
-              <Card key={plan.id} className={cx('flex h-full flex-col', featured && 'ring-2 ring-brand-500 dark:ring-brand-500')}>
+              <Card key={plan.id} className={cx('flex h-full flex-col', featured && 'ring-2 ring-gray-950 dark:ring-brand-500')}>
                 <div className="flex items-center justify-between gap-2">
                   <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-50">{plan.name}</h2>
                   {featured ? <Badge>Most popular</Badge> : null}
@@ -47,7 +47,7 @@ export function PricingPage() {
                 <ul className="mt-5 flex-1 space-y-2 text-sm text-gray-700 dark:text-gray-300">
                   {plan.features.map((feature) => (
                     <li key={feature} className="flex gap-2">
-                      <Check className="mt-0.5 size-4 shrink-0 text-brand-600 dark:text-brand-400" aria-hidden="true" />
+                      <Check className="mt-0.5 size-4 shrink-0 text-gray-950 dark:text-brand-400" aria-hidden="true" />
                       {feature}
                     </li>
                   ))}
