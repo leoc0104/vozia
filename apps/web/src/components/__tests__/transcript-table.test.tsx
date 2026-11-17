@@ -1,5 +1,6 @@
-import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { describe, expect, it, vi } from 'vitest'
 import type { DubSegmentRow } from '@vozia/db'
 import { TranscriptTable } from '../TranscriptTable'
 
@@ -35,5 +36,38 @@ describe('TranscriptTable', () => {
     render(<TranscriptTable segments={arabic} sourceLabel="Arabic" targetLabel="English" />)
     expect(screen.getByRole('cell', { name: 'مرحبا بكم' })).toHaveAttribute('dir', 'auto')
     expect(screen.getByRole('cell', { name: 'Welcome' })).toHaveAttribute('dir', 'auto')
+  })
+
+  it('tags each column with its language, so each script gets the right font', () => {
+    render(<TranscriptTable segments={segments} sourceLabel="English" targetLabel="Portuguese" sourceLang="en" targetLang="pt" />)
+    expect(screen.getByRole('cell', { name: 'Hello there.' })).toHaveAttribute('lang', 'en')
+    expect(screen.getByRole('cell', { name: 'Olá.' })).toHaveAttribute('lang', 'pt')
+  })
+
+  it('puts the marker on the line being heard in the dub', () => {
+    const { container } = render(<TranscriptTable segments={segments} sourceLabel="English" targetLabel="Portuguese" currentMs={700} />)
+    const row = container.querySelector<HTMLElement>('tr[aria-current="true"]')
+    expect(row).not.toBeNull()
+    expect(within(row!).getByText('Olá.').tagName).toBe('MARK')
+    expect(within(row!).getByText('Hello there.').tagName).not.toBe('MARK')
+  })
+
+  it('moves the marker to the original text while the original voice plays', () => {
+    render(<TranscriptTable segments={segments} sourceLabel="English" targetLabel="Portuguese" currentMs={700} markColumn="source" />)
+    expect(screen.getByText('Hello there.').tagName).toBe('MARK')
+    expect(screen.getByText('Olá.').tagName).not.toBe('MARK')
+  })
+
+  it('marks nothing while nobody is speaking', () => {
+    const { container } = render(<TranscriptTable segments={segments} sourceLabel="English" targetLabel="Portuguese" currentMs={30_000} />)
+    expect(container.querySelector('tr[aria-current]')).toBeNull()
+    expect(container.querySelector('mark')).toBeNull()
+  })
+
+  it('plays from a line when its time is pressed', async () => {
+    const onSeek = vi.fn()
+    render(<TranscriptTable segments={segments} sourceLabel="English" targetLabel="Portuguese" onSeek={onSeek} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Play from 1:01' }))
+    expect(onSeek).toHaveBeenCalledWith(61_000)
   })
 })

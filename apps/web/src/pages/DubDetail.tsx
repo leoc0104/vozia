@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { Download, FileText, RotateCcw, Trash2 } from 'lucide-react'
 import { BUCKETS } from '@vozia/db'
-import { languageName, type DubStatus } from '@vozia/shared'
+import type { DubStatus } from '@vozia/shared'
 import { ConfirmDialog } from '../components/ConfirmDialog'
+import { DubPlayer, type VoiceTrack } from '../components/DubPlayer'
 import { LanguageName } from '../components/LanguageName'
 import { StageStepper } from '../components/StageStepper'
 import { TranscriptTable } from '../components/TranscriptTable'
@@ -23,10 +24,15 @@ export function DubDetailPage() {
   const [busy, setBusy] = useState<'retry' | 'delete' | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
 
+  const [track, setTrack] = useState<VoiceTrack>('dub')
+  const [currentMs, setCurrentMs] = useState<number | null>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
+
   const title = video.data?.title ?? 'Video'
-  const language = dub.data ? languageName(dub.data.target_language) : ''
   const fileName = `${title.replace(/[^\w.-]+/g, '_')}-${dub.data?.target_language ?? 'dub'}.mp4`
   const playback = useSignedUrl(BUCKETS.outputs, dub.data?.output_path)
+  // The original video, kept for uploads and for links Vozia downloaded itself: what the voice switch plays.
+  const original = useSignedUrl(BUCKETS.sources, dub.data?.status === 'completed' ? video.data?.storage_path : null)
   const download = useSignedUrl(BUCKETS.outputs, dub.data?.output_path, fileName)
   const srtOriginal = useSignedUrl(BUCKETS.outputs, dub.data?.srt_original_path, 'original.srt')
   const srtTranslated = useSignedUrl(BUCKETS.outputs, dub.data?.srt_translated_path, `${dub.data?.target_language ?? 'translated'}.srt`)
@@ -42,6 +48,13 @@ export function DubDetailPage() {
     } finally {
       setBusy(null)
     }
+  }
+
+  function playFrom(ms: number) {
+    const player = videoRef.current
+    if (!player) return
+    player.currentTime = ms / 1000
+    void player.play()?.catch(() => undefined)
   }
 
   async function onDelete() {
@@ -125,15 +138,23 @@ export function DubDetailPage() {
 
       {d.status === 'completed' ? (
         <section className="space-y-4">
-          <div className="overflow-hidden rounded-lg bg-black">
-            {playback.data ? (
-              <video controls src={playback.data} className="aspect-video w-full" />
-            ) : (
-              <div className="grid aspect-video place-items-center">
-                <Spinner className="size-6 text-white dark:text-white" />
-              </div>
-            )}
-          </div>
+          {playback.data ? (
+            <DubPlayer
+              videoRef={videoRef}
+              dubSrc={playback.data}
+              originalSrc={original.data ?? null}
+              dubLanguage={d.target_language}
+              originalLanguage={d.detected_language}
+              voiceMode={d.voice_mode}
+              track={track}
+              onTrackChange={setTrack}
+              onTime={setCurrentMs}
+            />
+          ) : (
+            <div className="grid aspect-video place-items-center rounded-xl bg-black">
+              <Spinner className="size-6 text-white dark:text-white" />
+            </div>
+          )}
           <div className="flex flex-wrap gap-2">
             {download.data ? (
               <Button asChild>
@@ -174,8 +195,13 @@ export function DubDetailPage() {
           <div className="mt-3">
             <TranscriptTable
               segments={segments.data}
-              sourceLabel={d.detected_language ? languageName(d.detected_language) : 'Original'}
-              targetLabel={language}
+              sourceLabel={d.detected_language ? <LanguageName code={d.detected_language} /> : 'Original'}
+              targetLabel={<LanguageName code={d.target_language} />}
+              sourceLang={d.detected_language}
+              targetLang={d.target_language}
+              currentMs={d.status === 'completed' ? currentMs : null}
+              markColumn={track === 'original' && original.data ? 'source' : 'target'}
+              onSeek={d.status === 'completed' && playback.data ? playFrom : undefined}
             />
           </div>
         </section>

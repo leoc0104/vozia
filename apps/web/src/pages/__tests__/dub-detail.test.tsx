@@ -45,8 +45,21 @@ const baseDub = {
 describe('DubDetailPage', () => {
   beforeEach(() => {
     api.getDub.mockReset()
+    api.getVideo.mockImplementation(async () => ({ id: 'v1', title: 'Launch video', dubs: [] }))
     api.retryDub.mockClear()
     api.deleteDub.mockClear()
+  })
+
+  it('switches to the original voice when the original video is kept', async () => {
+    api.getVideo.mockImplementation(async () => ({ id: 'v1', title: 'Launch video', storage_path: 's/v1/source.mp4', dubs: [] }))
+    api.getDub.mockResolvedValue({ ...baseDub, status: 'completed', progress: 100, output_path: 'o/d1/dubbed.mp4' })
+    await renderApp('/app/dubs/d1', fake)
+    const original = await screen.findByRole('button', { name: 'English Original' })
+    expect(screen.getByRole('button', { name: 'Português Dub' })).toHaveAttribute('aria-pressed', 'true')
+    expect(document.querySelector('video')).toHaveAttribute('src', 'https://signed.test/o/d1/dubbed.mp4')
+    await userEvent.click(original)
+    expect(document.querySelector('video')).toHaveAttribute('src', 'https://signed.test/s/v1/source.mp4')
+    expect(await screen.findByRole('button', { name: 'Play from 0:00' })).toBeInTheDocument()
   })
 
   it('asks before deleting and deletes on confirm', async () => {
