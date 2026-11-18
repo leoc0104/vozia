@@ -102,7 +102,9 @@ export function DubDetailPage() {
             <Badge variant="neutral">{d.voice_mode === 'clone' ? 'Cloned voice' : 'Stock voice'}</Badge>
             {d.detected_language ? (
               <Badge variant="neutral">
-                From <LanguageName code={d.detected_language} />
+                <span>
+                  From <LanguageName code={d.detected_language} />
+                </span>
               </Badge>
             ) : null}
           </div>
@@ -177,7 +179,10 @@ export function DubDetailPage() {
             {srtTranslated.data ? (
               <Button asChild variant="secondary">
                 <a href={srtTranslated.data}>
-                  <FileText className="size-4" aria-hidden="true" /> Subtitles in <LanguageName code={d.target_language} />
+                  <FileText className="size-4" aria-hidden="true" />
+                  <span>
+                    Subtitles in <LanguageName code={d.target_language} />
+                  </span>
                 </a>
               </Button>
             ) : null}

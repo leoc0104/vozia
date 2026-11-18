@@ -36,8 +36,10 @@ export function VideoCard({ video, thumbnailUrl }: { video: VideoWithDubs; thumb
             {video.dubs.length === 0 ? <span className="text-xs text-gray-500 dark:text-gray-400">No dubs yet</span> : null}
             {video.dubs.map((dub) => (
               <Badge key={dub.id} variant={badgeVariantForStatus(dub.status)}>
-                <LanguageName code={dub.target_language} />
-                {dub.status !== 'completed' && dub.status !== 'failed' ? ` ${dub.progress}%` : dub.status === 'failed' ? ' · failed' : ''}
+                <span>
+                  <LanguageName code={dub.target_language} />
+                  {dub.status !== 'completed' && dub.status !== 'failed' ? ` ${dub.progress}%` : dub.status === 'failed' ? ' · failed' : ''}
+                </span>
               </Badge>
             ))}
           </div>
