@@ -9,6 +9,20 @@
    `.dark` and `.light` can also scope a subtree, which is how /design-system shows both themes at once. */
 @custom-variant dark (&:where(.dark, .dark *):where(:not(.light, .light *)));
 
+/* Wide but short windows, like most laptops: the landing page tightens there so it still fits on one screen. */
+@custom-variant short {
+  @media (min-width: 64rem) and (max-height: 820px) {
+    @slot;
+  }
+}
+
+/* Wide and very short windows, like 1366 by 768 laptops: one more step. Comes after `short`, so it wins when both apply. */
+@custom-variant shorter {
+  @media (min-width: 64rem) and (max-height: 700px) {
+    @slot;
+  }
+}
+
 @theme static {
   --color-*: initial;
   --color-white: #fff;
