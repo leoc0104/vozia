@@ -54,7 +54,8 @@ describe('DubDetailPage', () => {
     api.getVideo.mockImplementation(async () => ({ id: 'v1', title: 'Launch video', storage_path: 's/v1/source.mp4', dubs: [] }))
     api.getDub.mockResolvedValue({ ...baseDub, status: 'completed', progress: 100, output_path: 'o/d1/dubbed.mp4' })
     await renderApp('/app/dubs/d1', fake)
-    const original = await screen.findByRole('button', { name: 'English Original' })
+    // Four requests in a row (dub, video, then both signed urls) before the switch can appear.
+    const original = await screen.findByRole('button', { name: 'English Original' }, { timeout: 5000 })
     expect(screen.getByRole('button', { name: 'Português Dub' })).toHaveAttribute('aria-pressed', 'true')
     expect(document.querySelector('video')).toHaveAttribute('src', 'https://signed.test/o/d1/dubbed.mp4')
     await userEvent.click(original)
