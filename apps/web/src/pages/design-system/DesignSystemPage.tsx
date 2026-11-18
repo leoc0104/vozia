@@ -58,16 +58,18 @@ export function DesignSystemPage() {
           <div className="py-14">
             <div className="flex flex-wrap items-center gap-3">
               <span className="font-mono text-xs text-gray-500 dark:text-gray-400">Vozia design system</span>
-              <Badge variant="neutral">v0.1 · Proposal</Badge>
+              <Badge variant="neutral">v0.2 · Live in the app</Badge>
             </div>
-            <h1 className="mt-4 text-5xl font-semibold text-gray-900 sm:text-6xl dark:text-gray-50">On Air</h1>
+            <h1 className="mt-4 text-5xl font-semibold text-gray-900 sm:text-6xl dark:text-gray-50">Same Voice</h1>
             <p className="mt-5 max-w-2xl text-lg text-gray-600 dark:text-gray-400">
-              The moment a recording light turns on, a voice is live. Vozia&apos;s identity is built around that moment: calm ink and paper, and one hot
-              signal reserved for what is live right now.
+              When you know a voice, you know who is speaking. Vozia changes the language and keeps the voice, so the identity is built around that
+              voice: ink and paper, and one subtitle yellow that marks the voice itself.
             </p>
-            <Levels seed="vozia-sample" bars={64} animated className="mt-10 h-20 w-full text-brand-500" />
+            <div className="mt-10 rounded-xl bg-brand-500 px-6 py-5 dark:border dark:border-gray-800 dark:bg-gray-900">
+              <Levels seed="vozia-sample" bars={64} animated className="h-16 w-full text-gray-950 dark:text-brand-500" />
+            </div>
             <p className="mt-6 max-w-2xl text-sm text-gray-500 dark:text-gray-400">
-              A first proposal to react to, not a final brand. Everything here is live code from the app, and each decision can change with one edit.
+              Version 0.2, which replaced &quot;On Air&quot;. Everything here is live code from the app, and each decision can change with one edit.
             </p>
           </div>
           <ConceptSection />

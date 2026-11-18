@@ -27,15 +27,16 @@ const ROLES: { role: string; light: Pair; dark: Pair }[] = [
   { role: 'Primary text', light: ['gray-900', 'white'], dark: ['gray-50', 'gray-950'] },
   { role: 'Secondary text', light: ['gray-600', 'white'], dark: ['gray-400', 'gray-950'] },
   { role: 'Quiet text', light: ['gray-500', 'gray-50'], dark: ['gray-400', 'gray-900'] },
-  { role: 'Link and accent text', light: ['brand-600', 'gray-50'], dark: ['brand-400', 'gray-900'] },
+  { role: 'Links', light: ['gray-950', 'gray-50'], dark: ['brand-400', 'gray-900'] },
+  { role: 'Ink on yellow', light: ['gray-950', 'brand-500'], dark: ['gray-950', 'brand-500'] },
+  { role: 'Yellow on ink', light: ['brand-500', 'gray-950'], dark: ['brand-500', 'gray-950'] },
   { role: 'Primary button', light: ['white', 'gray-950'], dark: ['gray-950', 'gray-50'] },
-  { role: 'Signal button', light: ['gray-950', 'brand-500'], dark: ['gray-950', 'brand-500'] },
   { role: 'Danger button', light: ['white', 'danger-600'], dark: ['white', 'danger-700'] },
-  { role: 'Live badge', light: ['brand-900', 'brand-50'], dark: ['brand-300', 'gray-950'] },
+  { role: 'Live badge', light: ['gray-950', 'brand-500'], dark: ['brand-400', 'gray-950'] },
   { role: 'Success badge', light: ['success-900', 'success-50'], dark: ['success-400', 'gray-950'] },
   { role: 'Warning badge', light: ['warning-900', 'warning-50'], dark: ['warning-500', 'gray-950'] },
   { role: 'Error badge', light: ['danger-900', 'danger-50'], dark: ['danger-400', 'gray-950'] },
-  { role: 'Focus ring (needs 3:1)', light: ['brand-500', 'white'], dark: ['brand-500', 'gray-950'] },
+  { role: 'Focus ring (needs 3:1)', light: ['gray-950', 'white'], dark: ['brand-500', 'gray-950'] },
 ]
 
 function PairCell({ pair: [foreground, background] }: { pair: Pair }) {
@@ -69,14 +70,17 @@ function PairCell({ pair: [foreground, background] }: { pair: Pair }) {
 
 export function ColorSection() {
   return (
-    <Section id="color" title="Color" lead="Warm ink and paper for almost everything, and one hot signal. Status colors appear only when they carry a status.">
-      <Block title="Signal" note="The recording light. Use 500 for fills, with ink text on top. As text, use 600 on light surfaces and 400 on dark ones.">
+    <Section id="color" title="Color" lead="Ink and paper for almost everything, and one yellow for the voice. Status colors appear only when they carry a status.">
+      <Block
+        title="Subtitle yellow"
+        note="Use 500 for fills, always with ink on top. On dark surfaces 400 and 500 can also be text and thin lines. On light surfaces they never are, because yellow is only 1.4:1 on white: ink takes those jobs. The darker steps are only for text on pale yellow."
+      >
         <Scale name="brand" />
       </Block>
       <Block title="Ink and paper" note="Warm neutrals for text, surfaces and borders. As text, use 500 or darker on light surfaces, and 400 or lighter on dark ones.">
         <Scale name="gray" />
       </Block>
-      <Block title="Status" note="Danger leans crimson, so it never reads as the orange signal.">
+      <Block title="Status" note="Warning is orange, because yellow means the voice. Danger leans crimson, so it stays apart from the orange.">
         <div className="space-y-6">
           {['success', 'warning', 'danger', 'info'].map((name) => (
             <div key={name}>

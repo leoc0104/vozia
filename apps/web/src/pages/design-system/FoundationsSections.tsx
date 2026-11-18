@@ -96,13 +96,13 @@ export function LayoutSection() {
 
 export function MotionSection() {
   return (
-    <Section id="motion" title="Motion" lead="Quick and quiet. Only one thing keeps moving on its own: voice levels, and only while something is really live.">
-      <Block title="Voice levels" note="The signature motion, for work in progress. It stops for people who ask their device to reduce motion.">
+    <Section id="motion" title="Motion" lead="Quick and quiet. Only the voiceprint keeps moving on its own, and only while a voice is really playing or being made.">
+      <Block title="Voiceprint" note="The signature motion, for a voice being made. It stops for people who ask their device to reduce motion.">
         <ThemePanes className="space-y-6">
-          <Levels seed="vozia-sample" bars={40} animated className="h-14 w-full text-brand-500" />
+          <Levels seed="vozia-sample" bars={40} animated className="h-14 w-full text-gray-950 dark:text-brand-500" />
           <div className="flex flex-wrap items-center gap-6">
             <Spinner />
-            <Spinner className="size-8 text-brand-500 dark:text-brand-500" />
+            <Spinner className="size-8 text-gray-950 dark:text-brand-500" />
             <Badge variant="live">Translating</Badge>
           </div>
         </ThemePanes>

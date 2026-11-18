@@ -49,7 +49,7 @@ function Buttons() {
           <Button>
             <Plus className="size-4" aria-hidden="true" /> Primary
           </Button>
-          <Button variant="accent">Signal</Button>
+          <Button variant="accent">Accent</Button>
           <Button variant="secondary">Secondary</Button>
           <Button variant="light">Light</Button>
           <Button variant="ghost">Ghost</Button>
@@ -115,7 +115,7 @@ function Choices() {
     <div className="space-y-6">
       <RadioCardGroup aria-label="Voice" value={voice} onValueChange={setVoice} className="grid-cols-1 gap-3 sm:grid-cols-2">
         {[
-          ['clone', 'Option one', 'The signal marks the current choice.'],
+          ['clone', 'Option one', 'Ink on light surfaces, yellow on dark ones, marks the current choice.'],
           ['stock', 'Option two', 'Click to compare the two looks.'],
         ].map(([value, title, body]) => (
           <RadioCardItem key={value} value={value!}>
@@ -198,7 +198,7 @@ function Surfaces() {
         <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">The basic surface for grouped content.</p>
       </Card>
       <Divider>or</Divider>
-      <EmptyState title="No videos yet" description="Empty places show quiet levels: no signal yet." action={<Button size="sm">Create your first dub</Button>} />
+      <EmptyState title="No videos yet" description="Empty places show a quiet voiceprint." action={<Button size="sm">Create your first dub</Button>} />
       <div className="overflow-hidden rounded-lg border border-gray-200 dark:border-gray-800">
         <TableRoot>
           <Table className="border-b-0">
@@ -232,7 +232,7 @@ function Surfaces() {
 export function ComponentsSection() {
   return (
     <Section id="components" title="Components" lead="The kit used across the app, in both themes at once. These are the real components, so what you see here is what ships.">
-      <Block title="Buttons" note="Ink is the default. Use the signal button at most once per page, and red only to confirm something destructive.">
+      <Block title="Buttons" note="Ink is the default. Use the yellow accent button at most once per page, and red only to confirm something destructive.">
         <ThemePanes>
           <Buttons />
         </ThemePanes>
@@ -247,7 +247,7 @@ export function ComponentsSection() {
           <Choices />
         </ThemePanes>
       </Block>
-      <Block title="Status and feedback" note="Live work is the only thing that moves. Failed work uses crimson, never the signal.">
+      <Block title="Status and feedback" note="A voice being made is the only thing that moves. Warnings use orange and failures crimson, never the yellow.">
         <ThemePanes>
           <Status />
         </ThemePanes>

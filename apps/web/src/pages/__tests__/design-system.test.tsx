@@ -1,6 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { RouterProvider, createMemoryHistory, createRouter } from '@tanstack/react-router'
 import { render, screen, within } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { routeTree } from '../../router'
 import { resetAuthStoreForTests } from '../../stores/auth-store'
@@ -18,7 +19,7 @@ vi.setConfig({ testTimeout: 20_000 })
 const TOKENS = {
   '--color-white': '#ffffff',
   '--color-gray-900': '#000000',
-  '--color-brand-500': '#ff5a1f',
+  '--color-brand-500': '#ffd400',
 }
 
 async function openSignedOut() {
@@ -30,7 +31,7 @@ async function openSignedOut() {
       <RouterProvider router={router} />
     </QueryClientProvider>,
   )
-  await screen.findByRole('heading', { level: 1, name: 'On Air' }, { timeout: 15_000 })
+  await screen.findByRole('heading', { level: 1, name: 'Same Voice' }, { timeout: 15_000 })
   return router
 }
 
@@ -60,7 +61,7 @@ describe('design system page', () => {
 
   it('reads color values from the live theme, so the page cannot drift from the tokens', async () => {
     await openSignedOut()
-    expect(screen.getAllByText('#ff5a1f').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('#ffd400').length).toBeGreaterThan(0)
   })
 
   it('computes contrast from the live theme', async () => {
@@ -69,8 +70,17 @@ describe('design system page', () => {
     expect(within(row).getByText('21.0')).toBeInTheDocument()
   })
 
-  it('states that the identity is still a proposal', async () => {
+  it('lists the decisions that are still open', async () => {
     await openSignedOut()
-    expect(screen.getAllByText(/proposal/i).length).toBeGreaterThan(0)
+    expect(screen.getByRole('heading', { level: 2, name: 'Still open' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Voices belong to people' })).toBeInTheDocument()
+  })
+
+  it('shows the voice switch, which keeps working without a video', async () => {
+    await openSignedOut()
+    const original = screen.getByRole('button', { name: 'English Original' })
+    await userEvent.click(original)
+    expect(original).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByText(/^the original voice\./i)).toHaveAttribute('aria-live', 'polite')
   })
 })

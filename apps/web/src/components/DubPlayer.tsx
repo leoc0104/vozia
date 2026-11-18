@@ -5,6 +5,58 @@ import { LanguageName } from './LanguageName'
 
 export type VoiceTrack = 'dub' | 'original'
 
+export interface VoiceSwitchProps {
+  track: VoiceTrack
+  onChange: (track: VoiceTrack) => void
+  dubLanguage: string
+  originalLanguage?: string | null
+  voiceMode: VoiceMode
+}
+
+/** The switch under the player: the original or the dub, and a line saying what you hear. It sits on the player's ink. */
+export function VoiceSwitch({ track, onChange, dubLanguage, originalLanguage, voiceMode }: VoiceSwitchProps) {
+  const tracks = [
+    { id: 'original', language: originalLanguage ?? null, tag: 'Original' },
+    { id: 'dub', language: dubLanguage, tag: 'Dub' },
+  ] as const
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-800 p-4">
+      <p className="text-sm text-gray-400" aria-live="polite">
+        {track === 'original' ? (
+          'The original voice.'
+        ) : (
+          <>
+            {voiceMode === 'clone' ? 'Same voice' : 'Another voice'}, in <LanguageName code={dubLanguage} />.
+          </>
+        )}{' '}
+        Same moment, same timing.
+      </p>
+      <div role="group" aria-label="Voice track" className="inline-flex rounded-full bg-gray-800 p-1">
+        {tracks.map(({ id, language, tag }) => (
+          <button
+            key={id}
+            type="button"
+            aria-pressed={track === id}
+            onClick={() => onChange(id)}
+            className={cx(
+              'rounded-full px-3 py-1 text-sm font-medium transition-colors',
+              track === id ? 'bg-brand-500 text-gray-950' : 'text-gray-300 hover:text-gray-50',
+              focusRing,
+            )}
+          >
+            {language ? (
+              <>
+                <LanguageName code={language} />{' '}
+              </>
+            ) : null}
+            <span className="text-xs font-normal opacity-80">{tag}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export interface DubPlayerProps {
   videoRef: RefObject<HTMLVideoElement | null>
   dubSrc: string
@@ -43,11 +95,6 @@ export function DubPlayer({ videoRef, dubSrc, originalSrc, dubLanguage, original
     if (moment.playing) void video.play()?.catch(() => undefined)
   }
 
-  const tracks = [
-    { id: 'original', language: originalLanguage ?? null, tag: 'Original' },
-    { id: 'dub', language: dubLanguage, tag: 'Dub' },
-  ] as const
-
   return (
     <div className="dark overflow-hidden rounded-xl border border-gray-800 bg-gray-950 text-gray-50">
       <video
@@ -62,40 +109,7 @@ export function DubPlayer({ videoRef, dubSrc, originalSrc, dubLanguage, original
         onSeeked={(e) => onTime?.(e.currentTarget.currentTime * 1000)}
       />
       {canSwitch ? (
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-800 p-4">
-          <p className="text-sm text-gray-400" aria-live="polite">
-            {current === 'original' ? (
-              'The original voice.'
-            ) : (
-              <>
-                {voiceMode === 'clone' ? 'Same voice' : 'Another voice'}, in <LanguageName code={dubLanguage} />.
-              </>
-            )}{' '}
-            Same moment, same timing.
-          </p>
-          <div role="group" aria-label="Voice track" className="inline-flex rounded-full bg-gray-800 p-1">
-            {tracks.map(({ id, language, tag }) => (
-              <button
-                key={id}
-                type="button"
-                aria-pressed={current === id}
-                onClick={() => choose(id)}
-                className={cx(
-                  'rounded-full px-3 py-1 text-sm font-medium transition-colors',
-                  current === id ? 'bg-brand-500 text-gray-950' : 'text-gray-300 hover:text-gray-50',
-                  focusRing,
-                )}
-              >
-                {language ? (
-                  <>
-                    <LanguageName code={language} />{' '}
-                  </>
-                ) : null}
-                <span className="text-xs font-normal opacity-80">{tag}</span>
-              </button>
-            ))}
-          </div>
-        </div>
+        <VoiceSwitch track={current} onChange={choose} dubLanguage={dubLanguage} originalLanguage={originalLanguage} voiceMode={voiceMode} />
       ) : null}
     </div>
   )
