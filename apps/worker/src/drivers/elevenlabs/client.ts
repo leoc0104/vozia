@@ -91,7 +91,8 @@ export class ElevenLabsClient {
     signal?: AbortSignal,
   ): Promise<{ languageCode: string; words: Word[] }> {
     const form = new FormData()
-    form.append('model_id', 'scribe_v1')
+    // scribe_v1 is deprecated; scribe_v2 is its documented replacement with the same request and response shape.
+    form.append('model_id', 'scribe_v2')
     form.append('timestamps_granularity', 'word')
     form.append('diarize', opts.diarize === false ? 'false' : 'true')
     form.append('tag_audio_events', 'false')

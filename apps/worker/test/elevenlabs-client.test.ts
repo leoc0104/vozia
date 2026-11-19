@@ -36,7 +36,7 @@ describe('ElevenLabsClient', () => {
     expect(req.method).toBe('POST')
     expect(req.headers['xi-api-key']).toBe('key')
     const form = req.body as FormData
-    expect(form.get('model_id')).toBe('scribe_v1')
+    expect(form.get('model_id')).toBe('scribe_v2')
     expect(form.get('timestamps_granularity')).toBe('word')
     expect(form.get('diarize')).toBe('true')
     expect(form.get('language_code')).toBe('en')
