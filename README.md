@@ -92,7 +92,7 @@ In `NODE_ENV=production` the defaults switch to the real implementations; otherw
 |---|---|---|
 | `VOZIA_PIPELINE` | `staged` (default) · `elevenlabs` | `elevenlabs` needs only `ELEVENLABS_API_KEY` — the fastest way to a real dub |
 | `VOZIA_INGESTOR_DRIVER` | `fake` · `ytdlp` | `yt-dlp` + ffmpeg binaries |
-| `VOZIA_SEPARATOR_DRIVER` | `fake` · `ffmpeg-duck` · `replicate-demucs` | ffmpeg / `REPLICATE_API_TOKEN` + `REPLICATE_DEMUCS_VERSION` |
+| `VOZIA_SEPARATOR_DRIVER` | `fake` · `ffmpeg-duck` · `demucs` · `replicate-demucs` | ffmpeg / the `demucs` CLI, built into both worker images (`VOZIA_DEMUCS_PATH`) / `REPLICATE_API_TOKEN` + `REPLICATE_DEMUCS_VERSION` |
 | `VOZIA_TRANSCRIBER_DRIVER` | `fake` · `elevenlabs` | `ELEVENLABS_API_KEY` |
 | `VOZIA_TRANSLATOR_DRIVER` | `fake` · `anthropic` | `ANTHROPIC_API_KEY` (`VOZIA_TRANSLATION_MODEL`, default `claude-opus-5`) |
 | `VOZIA_SYNTHESIZER_DRIVER` | `fake` · `elevenlabs` | `ELEVENLABS_API_KEY` |
@@ -151,8 +151,10 @@ enqueue trigger and the storage policies. CI (`.github/workflows/ci.yml`) runs b
 - The real provider drivers (ElevenLabs Scribe/IVC/TTS/Dubbing, Anthropic, Replicate, yt-dlp) follow the
   documented request shapes and are tested against stubs, but have not been run against the live APIs.
   Expect to adjust field names on first contact.
-- `ffmpeg-duck` keeps the original mix under the dub at −14 dB (voices remain faintly audible). Real
-  separation needs `replicate-demucs`.
+- `ffmpeg-duck` keeps the original mix under the dub at −14 dB (voices remain faintly audible). `demucs`
+  (the production default) separates the voice locally and for free, so the dub keeps the original music and
+  effects and replaces only the speech. It runs on the CPU at roughly twice real time and adds about 1.2 GB to the
+  worker image. Non-speech vocal sounds (laughs, sighs) and singing go with the voice, so they are not kept.
 - YouTube ingestion depends on yt-dlp; YouTube's bot detection may require cookies or a proxy at scale.
 - The `elevenlabs` pipeline always clones the original voice; stock voices only apply to `staged`.
 - The translator uses `messages.parse` with structured output and does not yet enable server-side

@@ -3,7 +3,7 @@ import { PIPELINES } from '@vozia/shared'
 
 const DriversSchema = z.object({
   ingestor: z.enum(['fake', 'ytdlp']),
-  separator: z.enum(['fake', 'ffmpeg-duck', 'replicate-demucs']),
+  separator: z.enum(['fake', 'ffmpeg-duck', 'demucs', 'replicate-demucs']),
   transcriber: z.enum(['fake', 'elevenlabs']),
   translator: z.enum(['fake', 'anthropic']),
   synthesizer: z.enum(['fake', 'elevenlabs']),
@@ -37,13 +37,15 @@ export const WorkerConfigSchema = z.object({
   ffmpegPath: z.string(),
   ffprobePath: z.string(),
   ytdlpPath: z.string(),
+  demucsPath: z.string(),
 })
 
 export type WorkerConfig = z.infer<typeof WorkerConfigSchema>
 
 const REAL_DRIVERS: DriverSelection = {
   ingestor: 'ytdlp',
-  separator: 'ffmpeg-duck',
+  // Free, local and offline, and the dub keeps the original music and effects: see drivers/demucs-separator.ts.
+  separator: 'demucs',
   transcriber: 'elevenlabs',
   translator: 'anthropic',
   synthesizer: 'elevenlabs',
@@ -94,6 +96,7 @@ export function loadConfig(env: NodeJS.ProcessEnv): WorkerConfig {
     ffmpegPath: blank(env.VOZIA_FFMPEG_PATH) ?? 'ffmpeg',
     ffprobePath: blank(env.VOZIA_FFPROBE_PATH) ?? 'ffprobe',
     ytdlpPath: blank(env.VOZIA_YTDLP_PATH) ?? 'yt-dlp',
+    demucsPath: blank(env.VOZIA_DEMUCS_PATH) ?? 'demucs',
   })
 }
 

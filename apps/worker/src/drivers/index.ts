@@ -24,6 +24,7 @@ import {
   FakeTranscriber,
   FakeTranslator,
 } from './fake/index.js'
+import { DemucsSeparator } from './demucs-separator.js'
 import { FfmpegDuckSeparator } from './ffmpeg-duck-separator.js'
 import { FfmpegMediaProcessor } from './ffmpeg-media.js'
 import { execFileRunner, type ProcessRunner } from './process.js'
@@ -80,9 +81,11 @@ export function buildComponents(config: WorkerConfig, deps: ComponentDeps): Comp
             version: config.replicateDemucsVersion ?? '',
             fetchImpl: deps.fetchImpl,
           })
-        : config.drivers.separator === 'ffmpeg-duck'
-          ? new FfmpegDuckSeparator(media)
-          : new FakeSeparator()
+        : config.drivers.separator === 'demucs'
+          ? new DemucsSeparator({ run, demucsPath: config.demucsPath })
+          : config.drivers.separator === 'ffmpeg-duck'
+            ? new FfmpegDuckSeparator(media)
+            : new FakeSeparator()
     const transcriber = config.drivers.transcriber === 'elevenlabs' ? new ElevenLabsTranscriber(requireElevenLabs()) : new FakeTranscriber()
     const translator =
       config.drivers.translator === 'anthropic'

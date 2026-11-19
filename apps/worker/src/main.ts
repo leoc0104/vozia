@@ -10,6 +10,7 @@ async function preflightBinaries(config: WorkerConfig, log: Logger): Promise<voi
   const checks: [string, string[]][] = []
   if (config.drivers.media === 'ffmpeg') checks.push([config.ffmpegPath, ['-version']], [config.ffprobePath, ['-version']])
   if (config.pipeline === 'staged' && config.drivers.ingestor === 'ytdlp') checks.push([config.ytdlpPath, ['--version']])
+  if (config.pipeline === 'staged' && config.drivers.separator === 'demucs') checks.push([config.demucsPath, ['--help']])
   for (const [cmd, args] of checks) {
     try {
       const { stdout } = await execFileRunner(cmd, args, { timeoutMs: 15_000 })

@@ -32,6 +32,21 @@ describe('loadConfig', () => {
     expect(config.translationModel).toBe('claude-sonnet-5')
   })
 
+  it('separates voices locally by default in production, with no key and a configurable command', () => {
+    const config = loadConfig({
+      NODE_ENV: 'production',
+      DATABASE_URL: 'postgres://x',
+      SUPABASE_URL: 'https://x.supabase.co',
+      SUPABASE_SERVICE_ROLE_KEY: 'k',
+      ELEVENLABS_API_KEY: 'e',
+      ANTHROPIC_API_KEY: 'a',
+    })
+    expect(config.drivers.separator).toBe('demucs')
+    expect(config.demucsPath).toBe('demucs')
+    expect(missingSettings(config)).toEqual([])
+    expect(loadConfig({ VOZIA_DEMUCS_PATH: '/opt/demucs/bin/demucs' }).demucsPath).toBe('/opt/demucs/bin/demucs')
+  })
+
   it('rejects unknown drivers', () => {
     expect(() => loadConfig({ VOZIA_MEDIA_DRIVER: 'sox' })).toThrow()
   })
