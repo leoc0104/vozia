@@ -60,7 +60,7 @@ describe('FfmpegMediaProcessor', () => {
     expect(outputPath).toBe(path.join(ctx.workdir, 'dubbed.mp4'))
     expect(calls[0]!.args).toEqual([
       '-y', '-i', '/v.mp4', '-i', '/bg.wav', '-i', '/dub.wav',
-      '-filter_complex', '[1:a][2:a]amix=inputs=2:normalize=0:duration=first[a]',
+      '-filter_complex', '[1:a][2:a]amix=inputs=2:normalize=0:duration=first,alimiter=limit=0.95:level=false:latency=true[a]',
       '-map', '0:v:0', '-map', '[a]', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', outputPath,
     ])
   })

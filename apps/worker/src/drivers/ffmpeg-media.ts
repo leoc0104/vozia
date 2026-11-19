@@ -122,7 +122,9 @@ export class FfmpegMediaProcessor implements MediaProcessor {
       this.ffmpeg,
       [
         '-y', '-i', input.videoPath, '-i', input.backgroundPath, '-i', input.dubbedVocalsPath,
-        '-filter_complex', '[1:a][2:a]amix=inputs=2:normalize=0:duration=first[a]',
+        // Both tracks keep their own level; the limiter only catches peaks where the new voice lands on loud music,
+        // without raising the overall level (level=false) or shifting the audio against the picture (latency=true).
+        '-filter_complex', '[1:a][2:a]amix=inputs=2:normalize=0:duration=first,alimiter=limit=0.95:level=false:latency=true[a]',
         '-map', '0:v:0', '-map', '[a]',
         '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart',
         outputPath,
