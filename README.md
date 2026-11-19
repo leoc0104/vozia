@@ -154,7 +154,10 @@ enqueue trigger and the storage policies. CI (`.github/workflows/ci.yml`) runs b
 - `ffmpeg-duck` keeps the original mix under the dub at −14 dB (voices remain faintly audible). `demucs`
   (the production default) separates the voice locally and for free, so the dub keeps the original music and
   effects and replaces only the speech. It runs on the CPU at roughly twice real time and adds about 1.2 GB to the
-  worker image. Non-speech vocal sounds (laughs, sighs) and singing go with the voice, so they are not kept.
+  worker image. Between spoken lines (from the transcript's timing, padded and merged) the dub plays the original
+  audio untouched, so laughs, sighs and other sounds there survive even when the separator files them under the voice.
+  During speech the separated background plays; sounds the separator takes for voice (singing, some noises) drop out
+  there.
 - YouTube ingestion depends on yt-dlp; YouTube's bot detection may require cookies or a proxy at scale.
 - The `elevenlabs` pipeline always clones the original voice; stock voices only apply to `staged`.
 - The translator uses `messages.parse` with structured output and does not yet enable server-side

@@ -96,3 +96,46 @@ describe('FfmpegDuckSeparator', () => {
     expect(calls[0]!.args).toContain('volume=-12dB')
   })
 })
+
+describe('FfmpegMediaProcessor.keepOriginalBetweenSpeech', () => {
+  const speaking =
+    'min(1,clip((t-0.840)/0.060,0,1)*clip((2.210-t)/0.060,0,1)+clip((t-3.840)/0.060,0,1)*clip((5.210-t)/0.060,0,1))'
+
+  it('plays the original outside speech and the separated background during it, with short fades', async () => {
+    const { runner, calls } = createRecordingRunner()
+    const media = new FfmpegMediaProcessor({ run: runner, ffmpegPath: '/opt/ffmpeg' })
+    const ctx = await stageContext()
+    const out = await media.keepOriginalBetweenSpeech(
+      {
+        originalPath: '/a/original.wav',
+        backgroundPath: '/a/background.wav',
+        speech: [
+          { startMs: 900, endMs: 2150 },
+          { startMs: 3900, endMs: 5150 },
+        ],
+      },
+      ctx,
+    )
+    expect(out).toBe(path.join(ctx.workdir, 'background_blended.wav'))
+    const filterPath = path.join(ctx.workdir, 'blend.filter')
+    expect(await readFile(filterPath, 'utf8')).toBe(
+      `[0:a]asetnsamples=n=128:p=0,volume='1-${speaking}':eval=frame[original];\n` +
+        `[1:a]asetnsamples=n=128:p=0,volume='${speaking}':eval=frame[background];\n` +
+        '[original][background]amix=inputs=2:normalize=0:duration=first[out]\n',
+    )
+    expect(calls[0]!.args).toEqual([
+      '-y', '-i', '/a/original.wav', '-i', '/a/background.wav',
+      '-filter_complex_script', filterPath, '-map', '[out]', '-ar', '44100', '-ac', '2', '-c:a', 'pcm_s16le', out,
+    ])
+  })
+
+  it('keeps the original everywhere when nobody speaks', async () => {
+    const { runner } = createRecordingRunner()
+    const media = new FfmpegMediaProcessor({ run: runner, ffmpegPath: 'ffmpeg' })
+    const ctx = await stageContext()
+    await media.keepOriginalBetweenSpeech({ originalPath: '/a/o.wav', backgroundPath: '/a/b.wav', speech: [] }, ctx)
+    const filter = await readFile(path.join(ctx.workdir, 'blend.filter'), 'utf8')
+    expect(filter).toContain("volume='1-0':eval=frame[original]")
+    expect(filter).toContain("volume='0':eval=frame[background]")
+  })
+})

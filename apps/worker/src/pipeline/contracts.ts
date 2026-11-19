@@ -1,6 +1,7 @@
 import type { DubStatus, Pipeline, SourceType, VoiceMode } from '@vozia/shared'
 import type { DubRow, ProfileRow, VideoRow } from '@vozia/db'
 import type { Logger } from '../logger.js'
+import type { TimeWindow } from './speech-windows.js'
 
 export interface Word {
   text: string
@@ -95,6 +96,11 @@ export interface MediaProcessor {
   thumbnail(videoPath: string, ctx: StageContext): Promise<string>
   clipAudio(inputPath: string, opts: { startSec: number; durationSec: number }, ctx: StageContext): Promise<string>
   duck(audioPath: string, gainDb: number, ctx: StageContext): Promise<string>
+  /** The bed under the dub: the original audio outside `speech`, the separated background inside it, with short fades. */
+  keepOriginalBetweenSpeech(
+    input: { originalPath: string; backgroundPath: string; speech: TimeWindow[] },
+    ctx: StageContext,
+  ): Promise<string>
   assembleTimeline(
     clips: { placement: Placement; path: string }[],
     totalDurationMs: number,

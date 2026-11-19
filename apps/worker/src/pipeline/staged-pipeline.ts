@@ -17,6 +17,7 @@ import type {
   VideoIngestor,
 } from './contracts.js'
 import { PipelineError } from './errors.js'
+import { speechWindows } from './speech-windows.js'
 
 export interface StagedPipelineDeps {
   ingestor: VideoIngestor
@@ -78,7 +79,17 @@ export class StagedPipeline implements DubbingPipeline {
     )
 
     await ctx.setStage('muxing')
-    const { outputPath } = await this.d.media.mux({ videoPath: ingest.videoPath, backgroundPath, dubbedVocalsPath }, ctx)
+    // Between lines the original audio plays untouched, so sounds there survive even when the separator files them
+    // under the voice; while someone speaks, the separated background carries the music and effects under the dub.
+    const bedPath = await this.d.media.keepOriginalBetweenSpeech(
+      {
+        originalPath: ingest.audioPath,
+        backgroundPath,
+        speech: speechWindows(translated, Math.round(ingest.durationSeconds * 1000)),
+      },
+      ctx,
+    )
+    const { outputPath } = await this.d.media.mux({ videoPath: ingest.videoPath, backgroundPath: bedPath, dubbedVocalsPath }, ctx)
     const originalSrt = path.join(ctx.workdir, 'original.srt')
     const translatedSrt = path.join(ctx.workdir, 'translated.srt')
     await writeFile(originalSrt, toSrt(translated, 'text'))

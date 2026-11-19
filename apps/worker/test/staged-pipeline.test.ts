@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { createJobContext } from '../src/pipeline/context.js'
 import { StagedPipeline, type StagedPipelineDeps } from '../src/pipeline/staged-pipeline.js'
 import { InMemoryDubRepository } from '../src/repo/memory-repo.js'
@@ -35,6 +35,23 @@ async function setup(job: DubJob, overrides: Partial<StagedPipelineDeps> = {}) {
 }
 
 describe('StagedPipeline', () => {
+  it('mixes the dub over the original audio between lines and the separated background during them', async () => {
+    const media = new FakeMedia()
+    const separator = new FakeSeparator()
+    const keep = vi.spyOn(media, 'keepOriginalBetweenSpeech')
+    const mux = vi.spyOn(media, 'mux')
+    const separate = vi.spyOn(separator, 'separate')
+    const { ctx, pipeline } = await setup(makeJob(), { media, separator })
+    await pipeline.run(makeJob(), ctx)
+
+    const [input] = keep.mock.calls[0]!
+    expect(input.originalPath).toMatch(/audio\.wav$/)
+    expect(input.backgroundPath).toBe((await separate.mock.results[0]!.value).backgroundPath)
+    // The three canned lines (0–1.5 s, 1.6–4 s, 4.2–6 s) are close enough to read as one stretch of speech.
+    expect(input.speech).toEqual([{ startMs: 0, endMs: 6150 }])
+    expect(mux.mock.calls[0]![0].backgroundPath).toBe(await keep.mock.results[0]!.value)
+  })
+
   it('dubs a YouTube video end to end with the fakes', async () => {
     const { repo, storage, ctx, pipeline } = await setup(makeJob())
     await pipeline.run(makeJob(), ctx)

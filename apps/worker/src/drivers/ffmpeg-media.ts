@@ -2,6 +2,7 @@ import { writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import type { MediaProcessor, Placement, StageContext } from '../pipeline/contracts.js'
 import { ProviderError } from '../pipeline/errors.js'
+import type { TimeWindow } from '../pipeline/speech-windows.js'
 import { ProcessError, type ProcessRunner } from './process.js'
 
 export interface FfmpegOptions {
@@ -22,6 +23,24 @@ function mapProcessError(error: unknown, what: string): never {
     throw new ProviderError('ffmpeg', `${what} failed: ${lastLine}`, { cause: error })
   }
   throw error
+}
+
+/** How long the background takes to switch between the original audio and the separated background. */
+const BLEND_FADE_MS = 60
+
+const seconds = (ms: number) => (ms / 1000).toFixed(3)
+
+/**
+ * An ffmpeg expression of time `t` that is 1 while someone speaks and 0 elsewhere, ramping over `fadeMs` just
+ * outside each window. Windows never overlap (speechWindows merges them), so a capped sum is enough.
+ */
+function speakingExpression(windows: TimeWindow[], fadeMs: number): string {
+  if (windows.length === 0) return '0'
+  const fade = seconds(fadeMs)
+  const ramps = windows.map(
+    (w) => `clip((t-${seconds(w.startMs - fadeMs)})/${fade},0,1)*clip((${seconds(w.endMs + fadeMs)}-t)/${fade},0,1)`,
+  )
+  return `min(1,${ramps.join('+')})`
 }
 
 export class FfmpegMediaProcessor implements MediaProcessor {
@@ -110,6 +129,32 @@ export class FfmpegMediaProcessor implements MediaProcessor {
     await writeFile(filterPath, `${lines.join(';\n')}\n`)
     args.push('-filter_complex_script', filterPath, '-map', '[out]', '-ar', '44100', '-ac', '2', '-c:a', 'pcm_s16le', out)
     await this.exec(this.ffmpeg, args, ctx, 'Timeline assembly')
+    return out
+  }
+
+  async keepOriginalBetweenSpeech(
+    input: { originalPath: string; backgroundPath: string; speech: TimeWindow[] },
+    ctx: StageContext,
+  ): Promise<string> {
+    const out = path.join(ctx.workdir, 'background_blended.wav')
+    const filterPath = path.join(ctx.workdir, 'blend.filter')
+    const speaking = speakingExpression(input.speech, BLEND_FADE_MS)
+    // Small frames make the per-frame gain steps of the fades inaudible (128 samples ≈ 3 ms).
+    const lines = [
+      `[0:a]asetnsamples=n=128:p=0,volume='1-${speaking}':eval=frame[original]`,
+      `[1:a]asetnsamples=n=128:p=0,volume='${speaking}':eval=frame[background]`,
+      '[original][background]amix=inputs=2:normalize=0:duration=first[out]',
+    ]
+    await writeFile(filterPath, `${lines.join(';\n')}\n`)
+    await this.exec(
+      this.ffmpeg,
+      [
+        '-y', '-i', input.originalPath, '-i', input.backgroundPath,
+        '-filter_complex_script', filterPath, '-map', '[out]', '-ar', '44100', '-ac', '2', '-c:a', 'pcm_s16le', out,
+      ],
+      ctx,
+      'Background blending',
+    )
     return out
   }
 

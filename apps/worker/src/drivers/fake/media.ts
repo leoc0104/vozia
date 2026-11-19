@@ -1,6 +1,7 @@
 import { copyFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import type { MediaProcessor, Placement, StageContext } from '../../pipeline/contracts.js'
+import type { TimeWindow } from '../../pipeline/speech-windows.js'
 
 export class FakeMedia implements MediaProcessor {
   constructor(private readonly opts: { durationSeconds?: number } = {}) {}
@@ -30,6 +31,15 @@ export class FakeMedia implements MediaProcessor {
   async duck(_audioPath: string, _gainDb: number, ctx: StageContext): Promise<string> {
     const out = path.join(ctx.workdir, 'background.wav')
     await writeFile(out, 'fake ducked background\n')
+    return out
+  }
+
+  async keepOriginalBetweenSpeech(
+    input: { originalPath: string; backgroundPath: string; speech: TimeWindow[] },
+    ctx: StageContext,
+  ): Promise<string> {
+    const out = path.join(ctx.workdir, 'background_blended.wav')
+    await writeFile(out, `fake background, original audio outside ${input.speech.length} speech windows\n`)
     return out
   }
 
