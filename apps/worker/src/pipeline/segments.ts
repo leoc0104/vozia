@@ -13,7 +13,8 @@ const SENTENCE_END = /[.!?…]["')\]»]?$/
 /** Groups timed words into subtitle-sized segments at sentence ends, pauses, speaker changes or length limits. */
 export function groupWordsIntoSegments(words: readonly Word[], opts: GroupOptions = {}): TranscriptSegment[] {
   const maxSegmentMs = opts.maxSegmentMs ?? 15_000
-  const pauseMs = opts.pauseMs ?? 700
+  // Short enough to cut at the breaths between phrases, so each dubbed phrase lands where the original one did.
+  const pauseMs = opts.pauseMs ?? 450
   const maxWords = opts.maxWords ?? 40
   const segments: TranscriptSegment[] = []
   let current: Word[] = []

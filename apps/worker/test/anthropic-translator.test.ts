@@ -44,6 +44,21 @@ describe('AnthropicTranslator', () => {
     expect(ctx.progressValues.at(-1)).toBe(1)
   })
 
+  it('tells the model how long each original line takes to say, so the translation fits the same time', async () => {
+    const { client, calls } = echoClient()
+    const translator = new AnthropicTranslator({ model: 'm', client })
+    const lines = [
+      { idx: 0, startMs: 1740, endMs: 2940, text: 'Meu Deus, gente' },
+      { idx: 1, startMs: 29_600, endMs: 33_900, text: 'eu quero vomitar' },
+    ]
+    await translator.translate(lines, { sourceLanguage: 'pt', targetLanguage: 'en' }, await stageContext())
+    expect(JSON.parse(calls[0]!.messages[0]!.content.split('Segments:\n')[1]!)).toEqual([
+      { idx: 0, text: 'Meu Deus, gente', seconds: 1.2 },
+      { idx: 1, text: 'eu quero vomitar', seconds: 4.3 },
+    ])
+    expect(SYSTEM_PROMPT).toContain('`seconds`')
+  })
+
   it('retries segments the model skipped, once', async () => {
     let attempt = 0
     const { client, calls } = echoClient((idx, text) => (idx === 2 && attempt++ === 0 ? null : `X ${text}`))
@@ -51,7 +66,7 @@ describe('AnthropicTranslator', () => {
     const result = await translator.translate(segmentsOf(4), { sourceLanguage: 'en', targetLanguage: 'es' }, await stageContext())
     expect(result.map((s) => s.translatedText)).toEqual(['X line 0', 'X line 1', 'X line 2', 'X line 3'])
     expect(calls).toHaveLength(2)
-    expect(JSON.parse(calls[1]!.messages[0]!.content.split('Segments:\n')[1]!)).toEqual([{ idx: 2, text: 'line 2' }])
+    expect(JSON.parse(calls[1]!.messages[0]!.content.split('Segments:\n')[1]!)).toEqual([{ idx: 2, text: 'line 2', seconds: 0.9 }])
   })
 
   it('fails clearly when segments stay missing, on refusals and on unparsable answers', async () => {

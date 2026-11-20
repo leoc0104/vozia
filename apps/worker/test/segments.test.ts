@@ -19,6 +19,11 @@ describe('groupWordsIntoSegments', () => {
     expect(groupWordsIntoSegments(words).map((s) => s.text)).toEqual(['one', 'two', 'three four'])
   })
 
+  it('cuts at the breaths between phrases but not inside a phrase', () => {
+    const words = [w('one', 0, 200), w('two', 300, 500), w('three', 1000, 1200)]
+    expect(groupWordsIntoSegments(words).map((s) => s.text)).toEqual(['one two', 'three'])
+  })
+
   it('cuts when a segment grows too long or has too many words', () => {
     const long: Word[] = []
     for (let i = 0; i < 12; i++) long.push(w(`w${i}`, i * 2000, i * 2000 + 500))

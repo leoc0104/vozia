@@ -8,12 +8,18 @@ const segments = [
 ]
 
 describe('planTimeline', () => {
-  it('keeps clips that fit at natural speed', () => {
-    expect(planTimeline(segments, [1400, 2000, 1000], 7000)).toEqual([
+  it('keeps clips at natural speed when they last as long as the line, or longer but still fit before the next', () => {
+    expect(planTimeline(segments, [1500, 2550, 1800], 7000)).toEqual([
       { idx: 0, startMs: 0, tempo: 1 },
       { idx: 1, startMs: 1600, tempo: 1 },
       { idx: 2, startMs: 4200, tempo: 1 },
     ])
+  })
+
+  it('slows clips shorter than the original line toward its length, down to minTempo', () => {
+    const plan = planTimeline(segments, [1400, 2000, 1000], 7000)
+    expect(plan.map((p) => p.tempo)).toEqual([0.933, 0.85, 0.85])
+    expect(planTimeline(segments, [1000, 1000, 1000], 7000, { minTempo: 0.5 }).map((p) => p.tempo)).toEqual([0.667, 0.5, 0.556])
   })
 
   it('speeds up clips that overrun the gap to the next cue, capped at maxTempo', () => {

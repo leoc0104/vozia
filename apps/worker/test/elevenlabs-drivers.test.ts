@@ -66,10 +66,11 @@ describe('ElevenLabsSynthesizer', () => {
       ['clone-1', 'Bem-vindo à demonstração.'],
     ])
     expect(client.textToSpeech.mock.calls[0]![3]).toBe(path.join(ctx.workdir, 'clips', '0.mp3'))
+    // Both 1.2 s clips are shorter than their lines (1.5 s and 2.4 s), so they are slowed toward them, down to 0.85.
     expect(media.timeline).toEqual({
       placements: [
-        { idx: 0, startMs: 0, tempo: 1 },
-        { idx: 1, startMs: 1600, tempo: 1 },
+        { idx: 0, startMs: 0, tempo: 0.85 },
+        { idx: 1, startMs: 1600, tempo: 0.85 },
       ],
       totalDurationMs: 6000,
     })

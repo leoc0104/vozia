@@ -27,7 +27,7 @@ export const SYSTEM_PROMPT = `You translate video transcripts for AI dubbing.
 
 You receive numbered segments of spoken dialogue in a source language. Return every segment translated into the target language so that it can be spoken over the original timing:
 - Keep the meaning, tone and register; write natural spoken language, not literal word-for-word text.
-- Aim for a similar spoken duration as the original (roughly the same syllable count); shorten wordy phrasing when needed.
+- Each segment has \`seconds\`: how long the original line takes to say. Write a translation that a person would naturally take about that long to say: not much shorter, and not longer. Rephrase rather than pad; never add meaning.
 - Keep names, brands, numbers and untranslatable terms as they are.
 - Never add notes, explanations or extra segments; never merge or split segments.
 - Return one translation for every idx you were given, in the same order.`
@@ -109,7 +109,7 @@ export class AnthropicTranslator implements Translator {
       `Target language: ${languageLabel(opts.targetLanguage)} (${opts.targetLanguage})`,
       '',
       'Segments:',
-      JSON.stringify(batch.map((s) => ({ idx: s.idx, text: s.text }))),
+      JSON.stringify(batch.map((s) => ({ idx: s.idx, text: s.text, seconds: Math.round((s.endMs - s.startMs) / 100) / 10 }))),
     ].join('\n')
 
     let response: Awaited<ReturnType<TranslationClient['parse']>>
