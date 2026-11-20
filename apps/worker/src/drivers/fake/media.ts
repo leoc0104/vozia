@@ -34,7 +34,7 @@ export class FakeMedia implements MediaProcessor {
     return out
   }
 
-  async keepOriginalBetweenSpeech(
+  async buildDubBackground(
     input: { originalPath: string; backgroundPath: string; speech: TimeWindow[] },
     ctx: StageContext,
   ): Promise<string> {

@@ -96,8 +96,11 @@ export interface MediaProcessor {
   thumbnail(videoPath: string, ctx: StageContext): Promise<string>
   clipAudio(inputPath: string, opts: { startSec: number; durationSec: number }, ctx: StageContext): Promise<string>
   duck(audioPath: string, gainDb: number, ctx: StageContext): Promise<string>
-  /** The bed under the dub: the original audio outside `speech`, the separated background inside it, with short fades. */
-  keepOriginalBetweenSpeech(
+  /**
+   * The bed under the dub: the original audio outside `speech`; inside it, the separated background plus the
+   * original's steady noise floor, so the room keeps sounding the same while the new voice speaks. Short fades.
+   */
+  buildDubBackground(
     input: { originalPath: string; backgroundPath: string; speech: TimeWindow[] },
     ctx: StageContext,
   ): Promise<string>

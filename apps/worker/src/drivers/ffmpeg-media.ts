@@ -1,5 +1,6 @@
 import { writeFile } from 'node:fs/promises'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import type { MediaProcessor, Placement, StageContext } from '../pipeline/contracts.js'
 import { ProviderError } from '../pipeline/errors.js'
 import type { TimeWindow } from '../pipeline/speech-windows.js'
@@ -9,7 +10,13 @@ export interface FfmpegOptions {
   run: ProcessRunner
   ffmpegPath?: string
   ffprobePath?: string
+  /** Python with numpy, for the recreated noise floor under the dub. Without it the dub skips that layer. */
+  pythonPath?: string
+  roomToneScript?: string
 }
+
+/** apps/worker/scripts/room_tone.py, from src/drivers or dist/drivers alike. */
+const ROOM_TONE_SCRIPT = fileURLToPath(new URL('../../scripts/room_tone.py', import.meta.url))
 
 function mapProcessError(error: unknown, what: string): never {
   if (error instanceof ProcessError) {
@@ -132,30 +139,59 @@ export class FfmpegMediaProcessor implements MediaProcessor {
     return out
   }
 
-  async keepOriginalBetweenSpeech(
+  async buildDubBackground(
     input: { originalPath: string; backgroundPath: string; speech: TimeWindow[] },
     ctx: StageContext,
   ): Promise<string> {
     const out = path.join(ctx.workdir, 'background_blended.wav')
     const filterPath = path.join(ctx.workdir, 'blend.filter')
+    const roomTone = await this.roomTone(input, ctx)
     const speaking = speakingExpression(input.speech, BLEND_FADE_MS)
+    // While someone speaks: the separated background, plus the recreated noise floor when there is one.
+    const underSpeech = roomTone ? '[1:a][2:a]amix=inputs=2:normalize=0:duration=first,' : '[1:a]'
     // Small frames make the per-frame gain steps of the fades inaudible (128 samples ≈ 3 ms).
     const lines = [
       `[0:a]asetnsamples=n=128:p=0,volume='1-${speaking}':eval=frame[original]`,
-      `[1:a]asetnsamples=n=128:p=0,volume='${speaking}':eval=frame[background]`,
+      `${underSpeech}asetnsamples=n=128:p=0,volume='${speaking}':eval=frame[background]`,
       '[original][background]amix=inputs=2:normalize=0:duration=first[out]',
     ]
     await writeFile(filterPath, `${lines.join(';\n')}\n`)
     await this.exec(
       this.ffmpeg,
       [
-        '-y', '-i', input.originalPath, '-i', input.backgroundPath,
+        '-y', '-i', input.originalPath, '-i', input.backgroundPath, ...(roomTone ? ['-i', roomTone] : []),
         '-filter_complex_script', filterPath, '-map', '[out]', '-ar', '44100', '-ac', '2', '-c:a', 'pcm_s16le', out,
       ],
       ctx,
       'Background blending',
     )
     return out
+  }
+
+  /**
+   * Steady noise matching the original's floor while someone speaks (scripts/room_tone.py), or null. It is an
+   * improvement, not a requirement: without Python, or if the script fails, the dub goes on without it.
+   */
+  private async roomTone(
+    input: { originalPath: string; backgroundPath: string; speech: TimeWindow[] },
+    ctx: StageContext,
+  ): Promise<string | null> {
+    if (!this.opts.pythonPath || input.speech.length === 0) return null
+    const windowsPath = path.join(ctx.workdir, 'speech_windows.json')
+    const out = path.join(ctx.workdir, 'room_tone.wav')
+    await writeFile(windowsPath, JSON.stringify(input.speech))
+    try {
+      await this.opts.run(
+        this.opts.pythonPath,
+        [this.opts.roomToneScript ?? ROOM_TONE_SCRIPT, input.originalPath, input.backgroundPath, windowsPath, out],
+        { cwd: ctx.workdir, signal: ctx.signal },
+      )
+      return out
+    } catch (error) {
+      if (ctx.signal.aborted) throw error
+      ctx.log.warn({ error }, 'room tone skipped: the dub goes on without the recreated noise floor')
+      return null
+    }
   }
 
   async mux(

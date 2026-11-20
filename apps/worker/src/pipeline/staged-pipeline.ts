@@ -80,8 +80,8 @@ export class StagedPipeline implements DubbingPipeline {
 
     await ctx.setStage('muxing')
     // Between lines the original audio plays untouched, so sounds there survive even when the separator files them
-    // under the voice; while someone speaks, the separated background carries the music and effects under the dub.
-    const bedPath = await this.d.media.keepOriginalBetweenSpeech(
+    // under the voice; while someone speaks, the separated background and the recreated noise floor carry the room.
+    const bedPath = await this.d.media.buildDubBackground(
       {
         originalPath: ingest.audioPath,
         backgroundPath,

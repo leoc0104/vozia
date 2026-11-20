@@ -38,6 +38,7 @@ export const WorkerConfigSchema = z.object({
   ffprobePath: z.string(),
   ytdlpPath: z.string(),
   demucsPath: z.string(),
+  pythonPath: z.string(),
 })
 
 export type WorkerConfig = z.infer<typeof WorkerConfigSchema>
@@ -97,6 +98,8 @@ export function loadConfig(env: NodeJS.ProcessEnv): WorkerConfig {
     ffprobePath: blank(env.VOZIA_FFPROBE_PATH) ?? 'ffprobe',
     ytdlpPath: blank(env.VOZIA_YTDLP_PATH) ?? 'yt-dlp',
     demucsPath: blank(env.VOZIA_DEMUCS_PATH) ?? 'demucs',
+    // The worker images' Demucs virtualenv also has numpy, which the room tone script needs.
+    pythonPath: blank(env.VOZIA_PYTHON_PATH) ?? '/opt/demucs/bin/python',
   })
 }
 

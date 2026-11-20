@@ -156,8 +156,13 @@ enqueue trigger and the storage policies. CI (`.github/workflows/ci.yml`) runs b
   effects and replaces only the speech. It runs on the CPU at roughly twice real time and adds about 1.2 GB to the
   worker image. Between spoken lines (from the transcript's timing, padded and merged) the dub plays the original
   audio untouched, so laughs, sighs and other sounds there survive even when the separator files them under the voice.
-  During speech the separated background plays; sounds the separator takes for voice (singing, some noises) drop out
-  there.
+  During speech the separated background plays, plus a steady noise floor recreated from the original
+  (`apps/worker/scripts/room_tone.py`, numpy from the image's Demucs virtualenv, `VOZIA_PYTHON_PATH`), so steady room
+  noise does not vanish under the new voice. Bursty or voice-like sounds the separator takes for voice (singing, some
+  noises) still drop out there.
+- Pacing: the translator gets each line's length in seconds and aims for a translation of the same length; the
+  timeline slows a shorter clip toward its line's length (down to 0.85×) and speeds up a longer one (up to 1.35×);
+  lines are split at pauses of 0.45 s, so each phrase lands where the original one did.
 - YouTube ingestion depends on yt-dlp; YouTube's bot detection may require cookies or a proxy at scale.
 - The `elevenlabs` pipeline always clones the original voice; stock voices only apply to `staged`.
 - The translator uses `messages.parse` with structured output and does not yet enable server-side

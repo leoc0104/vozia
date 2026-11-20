@@ -58,7 +58,7 @@ export function buildComponents(config: WorkerConfig, deps: ComponentDeps): Comp
   const queue: JobQueue = deps.sql ? new PgmqQueue(deps.sql) : new InMemoryQueue()
   const media: MediaProcessor =
     config.drivers.media === 'ffmpeg'
-      ? new FfmpegMediaProcessor({ run, ffmpegPath: config.ffmpegPath, ffprobePath: config.ffprobePath })
+      ? new FfmpegMediaProcessor({ run, ffmpegPath: config.ffmpegPath, ffprobePath: config.ffprobePath, pythonPath: config.pythonPath })
       : new FakeMedia()
 
   let elevenlabs: ElevenLabsClient | null = null

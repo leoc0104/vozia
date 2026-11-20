@@ -1,6 +1,6 @@
 import { readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { FfmpegMediaProcessor } from '../src/drivers/ffmpeg-media.js'
 import { FfmpegDuckSeparator } from '../src/drivers/ffmpeg-duck-separator.js'
 import { ProcessError, createRecordingRunner } from '../src/drivers/process.js'
@@ -97,7 +97,7 @@ describe('FfmpegDuckSeparator', () => {
   })
 })
 
-describe('FfmpegMediaProcessor.keepOriginalBetweenSpeech', () => {
+describe('FfmpegMediaProcessor.buildDubBackground', () => {
   const speaking =
     'min(1,clip((t-0.840)/0.060,0,1)*clip((2.210-t)/0.060,0,1)+clip((t-3.840)/0.060,0,1)*clip((5.210-t)/0.060,0,1))'
 
@@ -105,7 +105,7 @@ describe('FfmpegMediaProcessor.keepOriginalBetweenSpeech', () => {
     const { runner, calls } = createRecordingRunner()
     const media = new FfmpegMediaProcessor({ run: runner, ffmpegPath: '/opt/ffmpeg' })
     const ctx = await stageContext()
-    const out = await media.keepOriginalBetweenSpeech(
+    const out = await media.buildDubBackground(
       {
         originalPath: '/a/original.wav',
         backgroundPath: '/a/background.wav',
@@ -129,11 +129,40 @@ describe('FfmpegMediaProcessor.keepOriginalBetweenSpeech', () => {
     ])
   })
 
+  it('adds the original steady noise floor under the dub while someone speaks', async () => {
+    const { runner, calls } = createRecordingRunner()
+    const media = new FfmpegMediaProcessor({ run: runner, pythonPath: '/py', roomToneScript: '/s/room_tone.py' })
+    const ctx = await stageContext()
+    const speech = [{ startMs: 900, endMs: 2150 }]
+    const out = await media.buildDubBackground({ originalPath: '/a/o.wav', backgroundPath: '/a/b.wav', speech }, ctx)
+
+    const windowsPath = path.join(ctx.workdir, 'speech_windows.json')
+    const roomTone = path.join(ctx.workdir, 'room_tone.wav')
+    expect(calls[0]).toEqual({ cmd: '/py', args: ['/s/room_tone.py', '/a/o.wav', '/a/b.wav', windowsPath, roomTone], cwd: ctx.workdir })
+    expect(JSON.parse(await readFile(windowsPath, 'utf8'))).toEqual(speech)
+    expect(calls[1]!.args.slice(0, 7)).toEqual(['-y', '-i', '/a/o.wav', '-i', '/a/b.wav', '-i', roomTone])
+    const filter = await readFile(path.join(ctx.workdir, 'blend.filter'), 'utf8')
+    expect(filter).toContain('[1:a][2:a]amix=inputs=2:normalize=0:duration=first,asetnsamples=n=128:p=0,volume=')
+    expect(out).toBe(path.join(ctx.workdir, 'background_blended.wav'))
+  })
+
+  it('goes on without the noise floor when the room tone script fails', async () => {
+    const { runner, calls } = createRecordingRunner((cmd) => (cmd === '/py' ? { fail: 'ModuleNotFoundError: numpy' } : undefined))
+    const media = new FfmpegMediaProcessor({ run: runner, pythonPath: '/py' })
+    const ctx = await stageContext()
+    const warn = vi.spyOn(ctx.log, 'warn')
+    await media.buildDubBackground({ originalPath: '/a/o.wav', backgroundPath: '/a/b.wav', speech: [{ startMs: 0, endMs: 900 }] }, ctx)
+
+    expect(warn).toHaveBeenCalledOnce()
+    expect(calls[1]!.args).not.toContain(path.join(ctx.workdir, 'room_tone.wav'))
+    expect(await readFile(path.join(ctx.workdir, 'blend.filter'), 'utf8')).toContain("[1:a]asetnsamples=n=128:p=0,volume='")
+  })
+
   it('keeps the original everywhere when nobody speaks', async () => {
     const { runner } = createRecordingRunner()
     const media = new FfmpegMediaProcessor({ run: runner, ffmpegPath: 'ffmpeg' })
     const ctx = await stageContext()
-    await media.keepOriginalBetweenSpeech({ originalPath: '/a/o.wav', backgroundPath: '/a/b.wav', speech: [] }, ctx)
+    await media.buildDubBackground({ originalPath: '/a/o.wav', backgroundPath: '/a/b.wav', speech: [] }, ctx)
     const filter = await readFile(path.join(ctx.workdir, 'blend.filter'), 'utf8')
     expect(filter).toContain("volume='1-0':eval=frame[original]")
     expect(filter).toContain("volume='0':eval=frame[background]")
