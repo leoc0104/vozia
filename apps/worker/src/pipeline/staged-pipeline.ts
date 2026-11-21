@@ -17,7 +17,18 @@ import type {
   VideoIngestor,
 } from './contracts.js'
 import { PipelineError } from './errors.js'
+import { attachSounds, lineNotes, performedTiming } from './performance.js'
 import { speechWindows } from './speech-windows.js'
+
+/** The most the new voice is raised or lowered to match the original, so a bad measurement cannot ruin the mix. */
+export const MAX_VOICE_GAIN_DB = 10
+
+/** The gain that brings the new voice to the original voice's loudness (both in LUFS); 0 when either is unknown. */
+export function matchVoiceLevel(originalLufs: number | null, dubbedLufs: number | null): number {
+  if (originalLufs === null || dubbedLufs === null) return 0
+  const gain = Math.max(-MAX_VOICE_GAIN_DB, Math.min(MAX_VOICE_GAIN_DB, originalLufs - dubbedLufs))
+  return Math.round(gain * 10) / 10
+}
 
 export interface StagedPipelineDeps {
   ingestor: VideoIngestor
@@ -58,22 +69,33 @@ export class StagedPipeline implements DubbingPipeline {
     await this.d.repo.patchDub(dub.id, { detected_language: transcript.language })
 
     await ctx.setStage('translating')
+    // How each line was performed: the speaker's own laughs, screams or sighs next to it, and how loud, high and
+    // lively it was against their usual delivery. The translator directs the dubbed performance from these.
+    const sounds = attachSounds(transcript.segments, transcript.events ?? [])
+    const delivery = await this.d.media.measureDelivery(vocalsPath, transcript.segments, ctx)
     const translated = await this.d.translator.translate(
       transcript.segments,
-      { sourceLanguage: transcript.language, targetLanguage: dub.target_language },
+      {
+        sourceLanguage: transcript.language,
+        targetLanguage: dub.target_language,
+        notes: lineNotes(transcript.segments, sounds, delivery),
+      },
       ctx,
     )
     await this.d.repo.replaceSegments(dub.id, translated)
 
     await ctx.setStage('synthesizing')
+    const totalDurationMs = Math.round(ingest.durationSeconds * 1000)
+    // A voice that performs directions also laughs where the speaker laughed, so those lines span their sounds.
+    const performed = this.d.synthesizer.performsDirections ? performedTiming(translated, sounds) : translated
     const { dubbedVocalsPath } = await this.d.synthesizer.synthesize(
       {
-        segments: translated,
+        segments: performed,
         vocalsPath,
         voiceMode: dub.voice_mode,
         stockVoiceId: dub.stock_voice_id,
         targetLanguage: dub.target_language,
-        totalDurationMs: Math.round(ingest.durationSeconds * 1000),
+        totalDurationMs,
       },
       ctx,
     )
@@ -81,15 +103,21 @@ export class StagedPipeline implements DubbingPipeline {
     await ctx.setStage('muxing')
     // Between lines the original audio plays untouched, so sounds there survive even when the separator files them
     // under the voice; while someone speaks, the separated background and the recreated noise floor carry the room.
+    // The windows follow the performed lines, so a laugh the new voice performs is not also heard from the original.
     const bedPath = await this.d.media.buildDubBackground(
-      {
-        originalPath: ingest.audioPath,
-        backgroundPath,
-        speech: speechWindows(translated, Math.round(ingest.durationSeconds * 1000)),
-      },
+      { originalPath: ingest.audioPath, backgroundPath, speech: speechWindows(performed, totalDurationMs) },
       ctx,
     )
-    const { outputPath } = await this.d.media.mux({ videoPath: ingest.videoPath, backgroundPath: bedPath, dubbedVocalsPath }, ctx)
+    // The new voice speaks as loud as the speaker did. One gain for the whole track keeps the performance's own
+    // rises and falls; the limiter in the mux catches any peak.
+    const voiceGainDb = matchVoiceLevel(
+      await this.d.media.loudness(vocalsPath, ctx),
+      await this.d.media.loudness(dubbedVocalsPath, ctx),
+    )
+    const { outputPath } = await this.d.media.mux(
+      { videoPath: ingest.videoPath, backgroundPath: bedPath, dubbedVocalsPath, voiceGainDb },
+      ctx,
+    )
     const originalSrt = path.join(ctx.workdir, 'original.srt')
     const translatedSrt = path.join(ctx.workdir, 'translated.srt')
     await writeFile(originalSrt, toSrt(translated, 'text'))

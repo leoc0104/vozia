@@ -15,11 +15,26 @@ describe('ElevenLabsTranscriber', () => {
         { text: 'Olá', startMs: 0, endMs: 300, speaker: 's0' },
         { text: 'mundo.', startMs: 400, endMs: 800, speaker: 's0' },
       ],
+      events: [],
     }))
     const ctx = await stageContext()
     const result = await new ElevenLabsTranscriber({ speechToText }).transcribe('/vocals.wav', { languageHint: null }, ctx)
-    expect(result).toEqual({ language: 'pt', segments: [{ idx: 0, startMs: 0, endMs: 800, text: 'Olá mundo.', speaker: 's0' }] })
+    expect(result).toEqual({
+      language: 'pt',
+      segments: [{ idx: 0, startMs: 0, endMs: 800, text: 'Olá mundo.', speaker: 's0' }],
+      events: [],
+    })
     expect(speechToText).toHaveBeenCalledWith('/vocals.wav', { languageCode: null, diarize: true }, ctx.signal)
+  })
+
+  it('passes on the sounds it heard, like laughter', async () => {
+    const speechToText = vi.fn(async () => ({
+      languageCode: 'pt',
+      words: [{ text: 'Socorro!', startMs: 0, endMs: 600, speaker: 's0' }],
+      events: [{ label: 'laughter', startMs: 700, endMs: 1500 }],
+    }))
+    const result = await new ElevenLabsTranscriber({ speechToText }).transcribe('/vocals.wav', { languageHint: null }, await stageContext())
+    expect(result.events).toEqual([{ label: 'laughter', startMs: 700, endMs: 1500 }])
   })
 })
 
@@ -65,6 +80,7 @@ describe('ElevenLabsSynthesizer', () => {
       ['clone-1', 'Olá.'],
       ['clone-1', 'Bem-vindo à demonstração.'],
     ])
+    expect(client.textToSpeech.mock.calls[0]![2]).toEqual({ modelId: 'eleven_v4' })
     expect(client.textToSpeech.mock.calls[0]![3]).toBe(path.join(ctx.workdir, 'clips', '0.mp3'))
     // Both 1.2 s clips are shorter than their lines (1.5 s and 2.4 s), so they are slowed toward them, down to 0.85.
     expect(media.timeline).toEqual({
@@ -76,6 +92,25 @@ describe('ElevenLabsSynthesizer', () => {
     })
     expect(client.deleteVoice).toHaveBeenCalledWith('clone-1', ctx.signal)
     expect(ctx.progressValues.at(-1)).toBe(1)
+  })
+
+  it('performs the directed version of each line with an expressive model, and the plain words otherwise', async () => {
+    const directed: TranslatedSegment[] = [
+      { idx: 0, startMs: 0, endMs: 1500, text: 'Socorro!', translatedText: 'Help!', performanceText: '[panicked] HELP! [screams]' },
+    ]
+    const request = { segments: directed, vocalsPath: '/v.wav', voiceMode: 'clone' as const, stockVoiceId: null, targetLanguage: 'en', totalDurationMs: 2000 }
+
+    const expressive = stubClient()
+    const v4 = new ElevenLabsSynthesizer({ client: expressive, media: new FakeMedia() })
+    expect(v4.performsDirections).toBe(true)
+    await v4.synthesize(request, await stageContext())
+    expect(expressive.textToSpeech.mock.calls[0]!.slice(1, 3)).toEqual(['[panicked] HELP! [screams]', { modelId: 'eleven_v4' }])
+
+    const older = stubClient()
+    const v2 = new ElevenLabsSynthesizer({ client: older, media: new FakeMedia(), modelId: 'eleven_multilingual_v2' })
+    expect(v2.performsDirections).toBe(false)
+    await v2.synthesize(request, await stageContext())
+    expect(older.textToSpeech.mock.calls[0]!.slice(1, 3)).toEqual(['Help!', { modelId: 'eleven_multilingual_v2' }])
   })
 
   it('uses the stock voice without cloning and can keep a clone', async () => {

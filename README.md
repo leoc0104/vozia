@@ -95,7 +95,7 @@ In `NODE_ENV=production` the defaults switch to the real implementations; otherw
 | `VOZIA_SEPARATOR_DRIVER` | `fake` · `ffmpeg-duck` · `demucs` · `replicate-demucs` | ffmpeg / the `demucs` CLI, built into both worker images (`VOZIA_DEMUCS_PATH`) / `REPLICATE_API_TOKEN` + `REPLICATE_DEMUCS_VERSION` |
 | `VOZIA_TRANSCRIBER_DRIVER` | `fake` · `elevenlabs` | `ELEVENLABS_API_KEY` |
 | `VOZIA_TRANSLATOR_DRIVER` | `fake` · `anthropic` | `ANTHROPIC_API_KEY` (`VOZIA_TRANSLATION_MODEL`, default `claude-opus-5`) |
-| `VOZIA_SYNTHESIZER_DRIVER` | `fake` · `elevenlabs` | `ELEVENLABS_API_KEY` |
+| `VOZIA_SYNTHESIZER_DRIVER` | `fake` · `elevenlabs` | `ELEVENLABS_API_KEY` (`VOZIA_SPEECH_MODEL`, default `eleven_v4`) |
 | `VOZIA_MEDIA_DRIVER` | `fake` · `ffmpeg` | ffmpeg + ffprobe binaries |
 | `VOZIA_STORAGE_DRIVER` | `fake` · `supabase` | `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` |
 
@@ -149,13 +149,14 @@ enqueue trigger and the storage policies. CI (`.github/workflows/ci.yml`) runs b
 ## Known limitations
 
 - The real provider drivers (ElevenLabs Scribe/IVC/TTS/Dubbing, Anthropic, Replicate, yt-dlp) follow the
-  documented request shapes and are tested against stubs, but have not been run against the live APIs.
-  Expect to adjust field names on first contact.
+  documented request shapes and are tested against stubs. Scribe, voice cloning, TTS with Eleven v4 and the
+  Anthropic translator have also run against the live APIs; the others have not yet.
 - `ffmpeg-duck` keeps the original mix under the dub at −14 dB (voices remain faintly audible). `demucs`
   (the production default) separates the voice locally and for free, so the dub keeps the original music and
   effects and replaces only the speech. It runs on the CPU at roughly twice real time and adds about 1.2 GB to the
   worker image. Between spoken lines (from the transcript's timing, padded and merged) the dub plays the original
-  audio untouched, so laughs, sighs and other sounds there survive even when the separator files them under the voice.
+  audio untouched, so sounds there survive even when the separator files them under the voice (the speaker's own
+  laughs and sighs right next to a line are re-performed by the new voice instead: see Performance).
   During speech the separated background plays, plus a steady noise floor recreated from the original
   (`apps/worker/scripts/room_tone.py`, numpy from the image's Demucs virtualenv, `VOZIA_PYTHON_PATH`), so steady room
   noise does not vanish under the new voice. Bursty or voice-like sounds the separator takes for voice (singing, some
@@ -163,6 +164,15 @@ enqueue trigger and the storage policies. CI (`.github/workflows/ci.yml`) runs b
 - Pacing: the translator gets each line's length in seconds and aims for a translation of the same length; the
   timeline slows a shorter clip toward its line's length (down to 0.85×) and speeds up a longer one (up to 1.35×);
   lines are split at pauses of 0.45 s, so each phrase lands where the original one did.
+- Performance: the transcriber also tags sounds such as laughter, sighs or screams, labeled in the video's language.
+  Each line's delivery is measured from the separated voice (`apps/worker/scripts/delivery.py`: loudness, pitch and
+  pitch movement against the speaker's usual, plus speed), and sounds by the same speaker within 1 s of a line are tied
+  to it. The translator gets all of this and returns, next to the plain subtitle text, a performance script with
+  ElevenLabs audio tags (`[panicked] Oh my God… [laughs]`). It decides which sounds came from the speaker's voice, in
+  any language, and performs them. Eleven v4 speaks the script in the cloned voice; the timing and speech windows of
+  a line extend over the laugh it performs, so the original laugh gives way to the new one, and every other sound
+  stays original. The new voice is then brought to the original voice's loudness (EBU R128, at most ±10 dB). Older
+  speech models get the plain words. Tags reproduce the kind of delivery, not the exact melody of the original.
 - YouTube ingestion depends on yt-dlp; YouTube's bot detection may require cookies or a proxy at scale.
 - The `elevenlabs` pipeline always clones the original voice; stock voices only apply to `staged`.
 - The translator uses `messages.parse` with structured output and does not yet enable server-side

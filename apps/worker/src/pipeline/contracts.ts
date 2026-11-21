@@ -19,7 +19,51 @@ export interface TranscriptSegment {
 }
 
 export interface TranslatedSegment extends TranscriptSegment {
+  /** The translation as plain words, for subtitles and the transcript. */
   translatedText: string
+  /** The same translation with performance directions for an expressive voice, like "[panicked] Oh no! [laughs]". */
+  performanceText?: string
+  /** The ids of the line's sounds (see LineNotes) that the performance re-performs in the new voice. */
+  performedSounds?: number[]
+}
+
+/** A non-speech sound the transcriber heard, labeled in the language of the video, like "risos" or "applause". */
+export interface SoundEvent {
+  label: string
+  startMs: number
+  endMs: number
+  /** Who made it, when the transcriber could tell. */
+  speaker?: string | null
+}
+
+/** A sound heard during or right next to a line, which the dub re-performs when it came from the speaker's voice. */
+export interface LineSound {
+  /** Its number within the line. */
+  id: number
+  label: string
+  position: 'before' | 'within' | 'after'
+  /** Seconds from the start of the line; negative when the sound comes before it. */
+  atSec: number
+  /** How long the sound lasts. */
+  seconds: number
+}
+
+/** How a line was said, measured from the original audio relative to the speaker's usual delivery. */
+export interface Delivery {
+  /** dB louder (+) or softer (−) than usual. */
+  loudnessDb?: number
+  /** Semitones higher (+) or lower (−) than the usual pitch. */
+  pitchSt?: number
+  /** How far the pitch moves within the line, in semitones: about 4 is flat, 10 or more is very lively. */
+  pitchRangeSt?: number
+  /** Speaking speed relative to usual: 1 is usual, 1.3 is 30% faster. */
+  pace?: number
+}
+
+/** What the translator needs to direct the dubbed performance of one line. */
+export interface LineNotes {
+  delivery?: Delivery
+  sounds?: LineSound[]
 }
 
 /** What every driver receives: a scratch directory, a logger, an abort signal and a progress sink. */
@@ -59,13 +103,13 @@ export interface Transcriber {
     audioPath: string,
     opts: { languageHint: string | null },
     ctx: StageContext,
-  ): Promise<{ language: string; segments: TranscriptSegment[] }>
+  ): Promise<{ language: string; segments: TranscriptSegment[]; events?: SoundEvent[] }>
 }
 
 export interface Translator {
   translate(
     segments: TranscriptSegment[],
-    opts: { sourceLanguage: string; targetLanguage: string },
+    opts: { sourceLanguage: string; targetLanguage: string; notes?: ReadonlyMap<number, LineNotes> },
     ctx: StageContext,
   ): Promise<TranslatedSegment[]>
 }
@@ -80,6 +124,11 @@ export interface SynthesisRequest {
 }
 
 export interface SpeechSynthesizer {
+  /**
+   * True when the voice speaks `performanceText` and performs its directions, like [laughs] or [whispering]. The dub
+   * then leaves the speaker's own laughs and sighs next to each line to the new voice instead of the original audio.
+   */
+  readonly performsDirections?: boolean
   synthesize(req: SynthesisRequest, ctx: StageContext): Promise<{ dubbedVocalsPath: string }>
 }
 
@@ -96,6 +145,12 @@ export interface MediaProcessor {
   thumbnail(videoPath: string, ctx: StageContext): Promise<string>
   clipAudio(inputPath: string, opts: { startSec: number; durationSec: number }, ctx: StageContext): Promise<string>
   duck(audioPath: string, gainDb: number, ctx: StageContext): Promise<string>
+  /** How each line was said, measured from the voice track relative to the speaker's usual; null when unavailable. */
+  measureDelivery(
+    vocalsPath: string,
+    lines: { idx: number; startMs: number; endMs: number }[],
+    ctx: StageContext,
+  ): Promise<Map<number, Delivery> | null>
   /**
    * The bed under the dub: the original audio outside `speech`; inside it, the separated background plus the
    * original's steady noise floor, so the room keeps sounding the same while the new voice speaks. Short fades.
@@ -109,8 +164,11 @@ export interface MediaProcessor {
     totalDurationMs: number,
     ctx: StageContext,
   ): Promise<string>
+  /** Integrated loudness (EBU R128) in LUFS, which ignores silence between lines; null for silence or on failure. */
+  loudness(path: string, ctx: StageContext): Promise<number | null>
+  /** `voiceGainDb` raises or lowers the new voice, so it can speak as loud as the original speaker did. */
   mux(
-    input: { videoPath: string; backgroundPath: string; dubbedVocalsPath: string },
+    input: { videoPath: string; backgroundPath: string; dubbedVocalsPath: string; voiceGainDb?: number },
     ctx: StageContext,
   ): Promise<{ outputPath: string }>
 }

@@ -7,7 +7,11 @@ function segmentsOf(n: number): TranscriptSegment[] {
   return Array.from({ length: n }, (_, i) => ({ idx: i, startMs: i * 1000, endMs: i * 1000 + 900, text: `line ${i}` }))
 }
 
-function echoClient(transform: (idx: number, text: string) => string | null = (i, t) => `PT ${t}`) {
+function echoClient(
+  transform: (idx: number, text: string) => string | null = (i, t) => `PT ${t}`,
+  perform: (text: string) => string = (text) => `[excited] ${text}`,
+  performedSounds: number[] = [],
+) {
   const calls: TranslationParseParams[] = []
   const client: TranslationClient = {
     parse: vi.fn(async (params: TranslationParseParams) => {
@@ -16,13 +20,15 @@ function echoClient(transform: (idx: number, text: string) => string | null = (i
       const items = JSON.parse(payload) as { idx: number; text: string }[]
       const translations = items.flatMap(({ idx, text }) => {
         const out = transform(idx, text)
-        return out === null ? [] : [{ idx, text: out }]
+        return out === null ? [] : [{ idx, text: out, performance: perform(out), performedSounds }]
       })
       return { parsed_output: { translations }, stop_reason: 'end_turn' }
     }),
   }
   return { client, calls }
 }
+
+const sentSegments = (call: TranslationParseParams) => JSON.parse(call.messages[0]!.content.split('Segments:\n')[1]!)
 
 describe('AnthropicTranslator', () => {
   it('translates in batches with a cached system prompt and structured output', async () => {
@@ -57,6 +63,74 @@ describe('AnthropicTranslator', () => {
       { idx: 1, text: 'eu quero vomitar', seconds: 4.3 },
     ])
     expect(SYSTEM_PROMPT).toContain('`seconds`')
+  })
+
+  it('tells the model how each line was said and which sounds the speaker made around it', async () => {
+    const { client, calls } = echoClient()
+    const translator = new AnthropicTranslator({ model: 'm', client })
+    const lines = [
+      { idx: 0, startMs: 5080, endMs: 8580, text: 'entrou uma barata voadora no meu quarto' },
+      { idx: 1, startMs: 9040, endMs: 12_140, text: 'me ajuda!' },
+    ]
+    const notes = new Map([
+      [0, {
+        delivery: { loudnessDb: 0.3, pitchSt: 4.9, pitchRangeSt: 6.1, pace: 1.2 },
+        sounds: [{ id: 0, label: 'risos', position: 'after' as const, atSec: 3.6, seconds: 0.9 }],
+      }],
+      [1, { delivery: {} }],
+    ])
+    await translator.translate(lines, { sourceLanguage: 'pt', targetLanguage: 'en', notes }, await stageContext())
+    expect(sentSegments(calls[0]!)).toEqual([
+      {
+        idx: 0,
+        text: 'entrou uma barata voadora no meu quarto',
+        seconds: 3.5,
+        delivery: { loudnessDb: 0.3, pitchSt: 4.9, pitchRangeSt: 6.1, pace: 1.2 },
+        sounds: [{ id: 0, label: 'risos', position: 'after', atSec: 3.6, seconds: 0.9 }],
+      },
+      { idx: 1, text: 'me ajuda!', seconds: 3.1 },
+    ])
+    for (const field of ['`performance`', '`delivery`', '`sounds`']) expect(SYSTEM_PROMPT).toContain(field)
+  })
+
+  it('returns plain words for the subtitles and a directed performance for the voice', async () => {
+    const { client } = echoClient(() => 'A flying cockroach got into my room', (text) => `[panicked] ${text}... [laughs]`)
+    const translator = new AnthropicTranslator({ model: 'm', client })
+    const [line] = await translator.translate(segmentsOf(1), { sourceLanguage: 'pt', targetLanguage: 'en' }, await stageContext())
+    expect(line).toMatchObject({
+      translatedText: 'A flying cockroach got into my room',
+      performanceText: '[panicked] A flying cockroach got into my room... [laughs]',
+    })
+  })
+
+  it('reports the listed sounds the performance re-performs, and only those', async () => {
+    const lines = segmentsOf(3)
+    const sounds = [
+      { id: 0, label: 'risos', position: 'after' as const, atSec: 1, seconds: 1.5 },
+      { id: 1, label: 'aplausos', position: 'after' as const, atSec: 2.5, seconds: 2 },
+    ]
+    const notes = new Map([[0, { sounds }], [1, { sounds }], [2, { sounds }]])
+    const translate = async (perform: (t: string) => string, performedSounds: number[]) =>
+      new AnthropicTranslator({ model: 'm', client: echoClient(undefined, perform, performedSounds).client }).translate(
+        lines,
+        { sourceLanguage: 'pt', targetLanguage: 'en', notes },
+        await stageContext(),
+      )
+
+    // The laugh is performed; the applause is not a voice, and 7 was never listed.
+    const performed = await translate((t) => `${t} [laughs harder]`, [0, 7, 0])
+    expect(performed[0]!.performedSounds).toEqual([0])
+    // A performance without any direction performs nothing, whatever the model claims.
+    const plain = await translate((t) => t, [0])
+    expect(plain[0]!.performedSounds).toBeUndefined()
+  })
+
+  it('falls back to the plain words when a performance lost them', async () => {
+    const { client } = echoClient((i, t) => `PT ${t}`, () => '[laughs]')
+    const translator = new AnthropicTranslator({ model: 'm', client })
+    const [line] = await translator.translate(segmentsOf(1), { sourceLanguage: 'en', targetLanguage: 'pt' }, await stageContext())
+    expect(line!.translatedText).toBe('PT line 0')
+    expect(line!.performanceText).toBeUndefined()
   })
 
   it('retries segments the model skipped, once', async () => {

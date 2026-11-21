@@ -1,4 +1,4 @@
-import type { StageContext, Transcriber, TranscriptSegment } from '../../pipeline/contracts.js'
+import type { SoundEvent, StageContext, Transcriber, TranscriptSegment } from '../../pipeline/contracts.js'
 
 export const CANNED_SEGMENTS: readonly TranscriptSegment[] = [
   { idx: 0, startMs: 0, endMs: 1500, text: 'Hello there.', speaker: 'speaker_0' },
@@ -7,16 +7,17 @@ export const CANNED_SEGMENTS: readonly TranscriptSegment[] = [
 ]
 
 export class FakeTranscriber implements Transcriber {
-  constructor(private readonly opts: { segments?: TranscriptSegment[]; language?: string } = {}) {}
+  constructor(private readonly opts: { segments?: TranscriptSegment[]; language?: string; events?: SoundEvent[] } = {}) {}
 
   async transcribe(
     _audioPath: string,
     opts: { languageHint: string | null },
     _ctx: StageContext,
-  ): Promise<{ language: string; segments: TranscriptSegment[] }> {
+  ): Promise<{ language: string; segments: TranscriptSegment[]; events: SoundEvent[] }> {
     return {
       language: this.opts.language ?? opts.languageHint ?? 'en',
       segments: (this.opts.segments ?? CANNED_SEGMENTS).map((s) => ({ ...s })),
+      events: (this.opts.events ?? []).map((e) => ({ ...e })),
     }
   }
 }

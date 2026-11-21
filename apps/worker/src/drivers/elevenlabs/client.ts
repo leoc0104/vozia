@@ -1,6 +1,6 @@
 import { readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import type { Word } from '../../pipeline/contracts.js'
+import type { SoundEvent, Word } from '../../pipeline/contracts.js'
 import { ProviderError } from '../../pipeline/errors.js'
 
 export interface ElevenLabsClientOptions {
@@ -89,13 +89,14 @@ export class ElevenLabsClient {
     filePath: string,
     opts: { languageCode?: string | null; diarize?: boolean },
     signal?: AbortSignal,
-  ): Promise<{ languageCode: string; words: Word[] }> {
+  ): Promise<{ languageCode: string; words: Word[]; events: SoundEvent[] }> {
     const form = new FormData()
     // scribe_v1 is deprecated; scribe_v2 is its documented replacement with the same request and response shape.
     form.append('model_id', 'scribe_v2')
     form.append('timestamps_granularity', 'word')
     form.append('diarize', opts.diarize === false ? 'false' : 'true')
-    form.append('tag_audio_events', 'false')
+    // Laughs, sighs and other sounds come back as timed "audio_event" tokens, which the dub performs.
+    form.append('tag_audio_events', 'true')
     if (opts.languageCode) form.append('language_code', opts.languageCode)
     form.append('file', await this.fileBlob(filePath), path.basename(filePath))
     const response = await this.request('/v1/speech-to-text', { method: 'POST', body: form, signal }, 'Transcription')
@@ -108,7 +109,17 @@ export class ElevenLabsClient {
         endMs: Math.round(w.end * 1000),
         speaker: w.speaker_id ?? null,
       }))
-    return { languageCode: body.language_code, words }
+    const events = (body.words ?? [])
+      .filter((w) => w.type === 'audio_event')
+      .map((w) => ({
+        // Labels come in the video's language and either bracket: "(laughter)" or "[riso]" become "laughter" and "riso".
+        label: w.text.trim().replace(/^[([\s]+|[)\]\s]+$/g, '').toLowerCase(),
+        startMs: Math.round(w.start * 1000),
+        endMs: Math.round(w.end * 1000),
+        speaker: w.speaker_id ?? null,
+      }))
+      .filter((e) => e.label !== '' && e.endMs > e.startMs)
+    return { languageCode: body.language_code, words, events }
   }
 
   async addVoice(name: string, sampleFilePath: string, signal?: AbortSignal): Promise<{ voiceId: string }> {
@@ -128,7 +139,7 @@ export class ElevenLabsClient {
   async textToSpeech(
     voiceId: string,
     text: string,
-    opts: { modelId?: string },
+    opts: { modelId: string },
     destPath: string,
     signal?: AbortSignal,
   ): Promise<void> {
@@ -139,7 +150,8 @@ export class ElevenLabsClient {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           text,
-          model_id: opts.modelId ?? 'eleven_multilingual_v2',
+          // Always explicit: the endpoint otherwise falls back to an older model that reads directions aloud.
+          model_id: opts.modelId,
           voice_settings: { stability: 0.5, similarity_boost: 0.8 },
         }),
         signal,

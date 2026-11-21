@@ -21,6 +21,7 @@ describe('ElevenLabsClient', () => {
           { text: ' ', start: 0.5, end: 0.6, type: 'spacing' },
           { text: 'there.', start: 0.6, end: 1.0, type: 'word', speaker_id: 'speaker_0' },
           { text: '(laughs)', start: 1.0, end: 1.5, type: 'audio_event' },
+          { text: '[riso]', start: 1.6, end: 2.0, type: 'audio_event', speaker_id: 'speaker_0' },
         ],
       }),
     )
@@ -31,6 +32,11 @@ describe('ElevenLabsClient', () => {
       { text: 'Hello', startMs: 100, endMs: 500, speaker: 'speaker_0' },
       { text: 'there.', startMs: 600, endMs: 1000, speaker: 'speaker_0' },
     ])
+    // Sounds come back apart from the words, with their timing, so the dub can perform them.
+    expect(result.events).toEqual([
+      { label: 'laughs', startMs: 1000, endMs: 1500, speaker: null },
+      { label: 'riso', startMs: 1600, endMs: 2000, speaker: 'speaker_0' },
+    ])
     const req = requests[0]!
     expect(req.url).toBe('https://api.elevenlabs.io/v1/speech-to-text')
     expect(req.method).toBe('POST')
@@ -39,6 +45,7 @@ describe('ElevenLabsClient', () => {
     expect(form.get('model_id')).toBe('scribe_v2')
     expect(form.get('timestamps_granularity')).toBe('word')
     expect(form.get('diarize')).toBe('true')
+    expect(form.get('tag_audio_events')).toBe('true')
     expect(form.get('language_code')).toBe('en')
     expect((form.get('file') as File).name).toBe('audio.wav')
   })
@@ -62,12 +69,12 @@ describe('ElevenLabsClient', () => {
     const { fetchImpl, requests } = createFetchStub(() => new Response(Buffer.from('mp3 bytes')))
     const client = new ElevenLabsClient({ apiKey: 'key', fetchImpl, baseUrl: 'https://proxy.example/' })
     const dest = path.join(await tempDir(), 'clip.mp3')
-    await client.textToSpeech('v123', 'Olá!', {}, dest)
+    await client.textToSpeech('v123', '[excited] Olá!', { modelId: 'eleven_v4' }, dest)
     expect(await readFile(dest, 'utf8')).toBe('mp3 bytes')
     expect(requests[0]!.url).toBe('https://proxy.example/v1/text-to-speech/v123?output_format=mp3_44100_128')
     expect(requests[0]!.json).toEqual({
-      text: 'Olá!',
-      model_id: 'eleven_multilingual_v2',
+      text: '[excited] Olá!',
+      model_id: 'eleven_v4',
       voice_settings: { stability: 0.5, similarity_boost: 0.8 },
     })
   })

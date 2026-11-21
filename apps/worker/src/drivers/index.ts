@@ -92,7 +92,9 @@ export function buildComponents(config: WorkerConfig, deps: ComponentDeps): Comp
         ? new AnthropicTranslator({ apiKey: config.anthropicApiKey, model: config.translationModel })
         : new FakeTranslator()
     const synthesizer =
-      config.drivers.synthesizer === 'elevenlabs' ? new ElevenLabsSynthesizer({ client: requireElevenLabs(), media }) : new FakeSynthesizer()
+      config.drivers.synthesizer === 'elevenlabs'
+        ? new ElevenLabsSynthesizer({ client: requireElevenLabs(), media, modelId: config.speechModel })
+        : new FakeSynthesizer()
     pipeline = new StagedPipeline({ ingestor, separator, transcriber, translator, synthesizer, media, storage, repo })
   }
 

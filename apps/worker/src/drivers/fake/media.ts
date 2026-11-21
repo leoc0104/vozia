@@ -1,6 +1,6 @@
 import { copyFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import type { MediaProcessor, Placement, StageContext } from '../../pipeline/contracts.js'
+import type { Delivery, MediaProcessor, Placement, StageContext } from '../../pipeline/contracts.js'
 import type { TimeWindow } from '../../pipeline/speech-windows.js'
 
 export class FakeMedia implements MediaProcessor {
@@ -34,6 +34,14 @@ export class FakeMedia implements MediaProcessor {
     return out
   }
 
+  async measureDelivery(
+    _vocalsPath: string,
+    _lines: { idx: number; startMs: number; endMs: number }[],
+    _ctx: StageContext,
+  ): Promise<Map<number, Delivery> | null> {
+    return null
+  }
+
   async buildDubBackground(
     input: { originalPath: string; backgroundPath: string; speech: TimeWindow[] },
     ctx: StageContext,
@@ -53,8 +61,12 @@ export class FakeMedia implements MediaProcessor {
     return out
   }
 
+  async loudness(_path: string, _ctx: StageContext): Promise<number | null> {
+    return null
+  }
+
   async mux(
-    input: { videoPath: string; backgroundPath: string; dubbedVocalsPath: string },
+    input: { videoPath: string; backgroundPath: string; dubbedVocalsPath: string; voiceGainDb?: number },
     ctx: StageContext,
   ): Promise<{ outputPath: string }> {
     const outputPath = path.join(ctx.workdir, 'dubbed.mp4')

@@ -1,3 +1,4 @@
+import { writeFileSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
@@ -65,6 +66,33 @@ describe('FfmpegMediaProcessor', () => {
     ])
   })
 
+  it('raises or lowers the new voice in the mix by the given gain', async () => {
+    const { runner, calls } = createRecordingRunner()
+    const media = new FfmpegMediaProcessor({ run: runner })
+    const ctx = await stageContext()
+    await media.mux({ videoPath: '/v.mp4', backgroundPath: '/bg.wav', dubbedVocalsPath: '/dub.wav', voiceGainDb: 4.6 }, ctx)
+    expect(calls[0]!.args).toContain(
+      '[2:a]volume=4.6dB[voice];[1:a][voice]amix=inputs=2:normalize=0:duration=first,alimiter=limit=0.95:level=false:latency=true[a]',
+    )
+  })
+
+  it('measures integrated loudness, and gives up on silence or an unreadable answer', async () => {
+    const summary = 'Summary:\n\n  Integrated loudness:\n    I:         -16.3 LUFS\n    Threshold: -26.5 LUFS\n'
+    const { runner, calls } = createRecordingRunner(() => ({ stderr: summary }))
+    const ctx = await stageContext()
+    expect(await new FfmpegMediaProcessor({ run: runner }).loudness('/a/v.wav', ctx)).toBe(-16.3)
+    expect(calls[0]!.args).toEqual(['-nostdin', '-hide_banner', '-i', '/a/v.wav', '-af', 'ebur128=framelog=verbose', '-f', 'null', '-'])
+
+    const silent = createRecordingRunner(() => ({ stderr: summary.replace('-16.3', '-70.0') })).runner
+    expect(await new FfmpegMediaProcessor({ run: silent }).loudness('/a/v.wav', ctx)).toBeNull()
+    const garbage = createRecordingRunner(() => ({ stderr: 'nothing useful' })).runner
+    expect(await new FfmpegMediaProcessor({ run: garbage }).loudness('/a/v.wav', ctx)).toBeNull()
+    const failing = createRecordingRunner(() => ({ fail: 'Invalid data found when processing input' })).runner
+    const warn = vi.spyOn(ctx.log, 'warn')
+    expect(await new FfmpegMediaProcessor({ run: failing }).loudness('/a/v.wav', ctx)).toBeNull()
+    expect(warn).toHaveBeenCalledOnce()
+  })
+
   it('maps process failures to provider errors', async () => {
     const ctx = await stageContext()
     const missing = new FfmpegMediaProcessor({
@@ -94,6 +122,44 @@ describe('FfmpegDuckSeparator', () => {
     expect(await readFile(result.vocalsPath, 'utf8')).toBe('mix')
     expect(result.backgroundPath).toBe(path.join(ctx.workdir, 'background.wav'))
     expect(calls[0]!.args).toContain('volume=-12dB')
+  })
+})
+
+describe('FfmpegMediaProcessor.measureDelivery', () => {
+  const lines = [
+    { idx: 0, startMs: 0, endMs: 1200 },
+    { idx: 1, startMs: 1500, endMs: 3000 },
+  ]
+
+  it('measures each line with the delivery script and keeps only the numbers it could measure', async () => {
+    const { runner, calls } = createRecordingRunner((cmd, args) => {
+      if (cmd !== '/py') return undefined
+      writeFileSync(args[3]!, JSON.stringify([
+        { idx: 0, loudnessDb: 3.2, pitchSt: 4.1, pitchRangeSt: 11.5 },
+        { idx: 1, loudnessDb: -1, pitchSt: null, pitchRangeSt: null },
+      ]))
+      return {}
+    })
+    const media = new FfmpegMediaProcessor({ run: runner, pythonPath: '/py', deliveryScript: '/s/delivery.py' })
+    const ctx = await stageContext()
+    const delivery = await media.measureDelivery('/a/vocals.wav', lines, ctx)
+
+    const linesPath = path.join(ctx.workdir, 'delivery_lines.json')
+    expect(calls[0]).toEqual({ cmd: '/py', args: ['/s/delivery.py', '/a/vocals.wav', linesPath, path.join(ctx.workdir, 'delivery.json')], cwd: ctx.workdir })
+    expect(JSON.parse(await readFile(linesPath, 'utf8'))).toEqual(lines)
+    expect(delivery).toEqual(new Map([
+      [0, { loudnessDb: 3.2, pitchSt: 4.1, pitchRangeSt: 11.5 }],
+      [1, { loudnessDb: -1 }],
+    ]))
+  })
+
+  it('goes on without measurements when the script fails or there is no Python', async () => {
+    const { runner } = createRecordingRunner(() => ({ fail: 'ModuleNotFoundError: numpy' }))
+    const ctx = await stageContext()
+    const warn = vi.spyOn(ctx.log, 'warn')
+    expect(await new FfmpegMediaProcessor({ run: runner, pythonPath: '/py' }).measureDelivery('/a/v.wav', lines, ctx)).toBeNull()
+    expect(warn).toHaveBeenCalledOnce()
+    expect(await new FfmpegMediaProcessor({ run: runner }).measureDelivery('/a/v.wav', lines, ctx)).toBeNull()
   })
 })
 

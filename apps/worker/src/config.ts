@@ -32,6 +32,8 @@ export const WorkerConfigSchema = z.object({
   elevenlabsApiKey: z.string().optional(),
   anthropicApiKey: z.string().optional(),
   translationModel: z.string(),
+  /** ElevenLabs speech model; the synthesizer defaults to Eleven v4, which performs directions like [laughs]. */
+  speechModel: z.string().optional(),
   replicateApiToken: z.string().optional(),
   replicateDemucsVersion: z.string().optional(),
   ffmpegPath: z.string(),
@@ -92,6 +94,7 @@ export function loadConfig(env: NodeJS.ProcessEnv): WorkerConfig {
     elevenlabsApiKey: blank(env.ELEVENLABS_API_KEY),
     anthropicApiKey: blank(env.ANTHROPIC_API_KEY),
     translationModel: blank(env.VOZIA_TRANSLATION_MODEL) ?? 'claude-opus-5',
+    speechModel: blank(env.VOZIA_SPEECH_MODEL),
     replicateApiToken: blank(env.REPLICATE_API_TOKEN),
     replicateDemucsVersion: blank(env.REPLICATE_DEMUCS_VERSION),
     ffmpegPath: blank(env.VOZIA_FFMPEG_PATH) ?? 'ffmpeg',

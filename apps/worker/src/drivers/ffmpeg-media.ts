@@ -1,7 +1,7 @@
-import { writeFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { MediaProcessor, Placement, StageContext } from '../pipeline/contracts.js'
+import type { Delivery, MediaProcessor, Placement, StageContext } from '../pipeline/contracts.js'
 import { ProviderError } from '../pipeline/errors.js'
 import type { TimeWindow } from '../pipeline/speech-windows.js'
 import { ProcessError, type ProcessRunner } from './process.js'
@@ -10,13 +10,15 @@ export interface FfmpegOptions {
   run: ProcessRunner
   ffmpegPath?: string
   ffprobePath?: string
-  /** Python with numpy, for the recreated noise floor under the dub. Without it the dub skips that layer. */
+  /** Python with numpy, for the noise floor under the dub and the delivery measurements. Without it the dub skips both. */
   pythonPath?: string
   roomToneScript?: string
+  deliveryScript?: string
 }
 
-/** apps/worker/scripts/room_tone.py, from src/drivers or dist/drivers alike. */
+/** apps/worker/scripts/*.py, from src/drivers or dist/drivers alike. */
 const ROOM_TONE_SCRIPT = fileURLToPath(new URL('../../scripts/room_tone.py', import.meta.url))
+const DELIVERY_SCRIPT = fileURLToPath(new URL('../../scripts/delivery.py', import.meta.url))
 
 function mapProcessError(error: unknown, what: string): never {
   if (error instanceof ProcessError) {
@@ -139,6 +141,38 @@ export class FfmpegMediaProcessor implements MediaProcessor {
     return out
   }
 
+  /**
+   * How each line was said, from the voice track (scripts/delivery.py). Like the room tone it is an improvement, not
+   * a requirement: without Python, or if the script fails, the translator works from the words and timing alone.
+   */
+  async measureDelivery(
+    vocalsPath: string,
+    lines: { idx: number; startMs: number; endMs: number }[],
+    ctx: StageContext,
+  ): Promise<Map<number, Delivery> | null> {
+    if (!this.opts.pythonPath || lines.length === 0) return null
+    const linesPath = path.join(ctx.workdir, 'delivery_lines.json')
+    const out = path.join(ctx.workdir, 'delivery.json')
+    await writeFile(linesPath, JSON.stringify(lines.map(({ idx, startMs, endMs }) => ({ idx, startMs, endMs }))))
+    try {
+      await this.opts.run(this.opts.pythonPath, [this.opts.deliveryScript ?? DELIVERY_SCRIPT, vocalsPath, linesPath, out], {
+        cwd: ctx.workdir,
+        signal: ctx.signal,
+      })
+      const rows = JSON.parse(await readFile(out, 'utf8')) as ({ idx: number } & Record<keyof Delivery, number | null>)[]
+      return new Map(
+        rows.map(({ idx, ...measured }) => [
+          idx,
+          Object.fromEntries(Object.entries(measured).filter(([, value]) => typeof value === 'number')) as Delivery,
+        ]),
+      )
+    } catch (error) {
+      if (ctx.signal.aborted) throw error
+      ctx.log.warn({ error }, 'delivery not measured: the translator works from the words and timing alone')
+      return null
+    }
+  }
+
   async buildDubBackground(
     input: { originalPath: string; backgroundPath: string; speech: TimeWindow[] },
     ctx: StageContext,
@@ -194,18 +228,41 @@ export class FfmpegMediaProcessor implements MediaProcessor {
     }
   }
 
+  /** Like the room tone, an improvement and not a requirement: on failure the dub keeps the voice at its own level. */
+  async loudness(file: string, ctx: StageContext): Promise<number | null> {
+    let measured: { stderr: string }
+    try {
+      // framelog=verbose keeps the per-frame lines out of the output; the summary is printed either way.
+      measured = await this.opts.run(
+        this.ffmpeg,
+        ['-nostdin', '-hide_banner', '-i', file, '-af', 'ebur128=framelog=verbose', '-f', 'null', '-'],
+        { cwd: ctx.workdir, signal: ctx.signal },
+      )
+    } catch (error) {
+      if (ctx.signal.aborted) throw error
+      ctx.log.warn({ error, file }, 'loudness not measured: the new voice keeps its own level')
+      return null
+    }
+    const lufs = Number(/Integrated loudness:\s*I:\s*(-?[\d.]+) LUFS/.exec(measured.stderr)?.[1])
+    // Gated loudness bottoms out at -70 LUFS: there is nothing to match.
+    return Number.isFinite(lufs) && lufs > -70 ? lufs : null
+  }
+
   async mux(
-    input: { videoPath: string; backgroundPath: string; dubbedVocalsPath: string },
+    input: { videoPath: string; backgroundPath: string; dubbedVocalsPath: string; voiceGainDb?: number },
     ctx: StageContext,
   ): Promise<{ outputPath: string }> {
     const outputPath = path.join(ctx.workdir, 'dubbed.mp4')
+    const gain = input.voiceGainDb ?? 0
+    const tracks = gain === 0 ? '[1:a][2:a]' : `[2:a]volume=${gain}dB[voice];[1:a][voice]`
     await this.exec(
       this.ffmpeg,
       [
         '-y', '-i', input.videoPath, '-i', input.backgroundPath, '-i', input.dubbedVocalsPath,
         // Both tracks keep their own level; the limiter only catches peaks where the new voice lands on loud music,
         // without raising the overall level (level=false) or shifting the audio against the picture (latency=true).
-        '-filter_complex', '[1:a][2:a]amix=inputs=2:normalize=0:duration=first,alimiter=limit=0.95:level=false:latency=true[a]',
+        '-filter_complex',
+        `${tracks}amix=inputs=2:normalize=0:duration=first,alimiter=limit=0.95:level=false:latency=true[a]`,
         '-map', '0:v:0', '-map', '[a]',
         '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart',
         outputPath,
