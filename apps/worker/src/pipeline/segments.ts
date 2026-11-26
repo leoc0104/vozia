@@ -29,6 +29,8 @@ export function groupWordsIntoSegments(words: readonly Word[], opts: GroupOption
       endMs: Math.max(last.endMs, first.startMs),
       text: current.map((w) => w.text).join(' ').replace(/\s+([,.!?;:…])/g, '$1').trim(),
       speaker: first.speaker ?? null,
+      // Kept so the dub can line its own words up with these, one by one.
+      words: current.map((w) => ({ ...w })),
     })
     current = []
   }

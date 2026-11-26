@@ -1,6 +1,13 @@
 import { copyFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import type { Delivery, MediaProcessor, Placement, StageContext } from '../../pipeline/contracts.js'
+import type {
+  Frame,
+  MediaProcessor,
+  Placement,
+  StageContext,
+  VoiceAnalysis,
+  VoiceAnalysisRequest,
+} from '../../pipeline/contracts.js'
 import type { TimeWindow } from '../../pipeline/speech-windows.js'
 
 export class FakeMedia implements MediaProcessor {
@@ -34,12 +41,16 @@ export class FakeMedia implements MediaProcessor {
     return out
   }
 
-  async measureDelivery(
-    _vocalsPath: string,
-    _lines: { idx: number; startMs: number; endMs: number }[],
-    _ctx: StageContext,
-  ): Promise<Map<number, Delivery> | null> {
+  async analyzeVoice(_vocalsPath: string, _request: VoiceAnalysisRequest, _ctx: StageContext): Promise<VoiceAnalysis | null> {
     return null
+  }
+
+  async sceneCuts(_videoPath: string, _ctx: StageContext): Promise<number[]> {
+    return []
+  }
+
+  async frames(_videoPath: string, _timesMs: number[], _ctx: StageContext): Promise<Frame[]> {
+    return []
   }
 
   async buildDubBackground(

@@ -1,7 +1,16 @@
-import { readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { Delivery, MediaProcessor, Placement, StageContext } from '../pipeline/contracts.js'
+import type {
+  Frame,
+  MediaProcessor,
+  Placement,
+  StageContext,
+  VoiceAnalysis,
+  VoiceAnalysisRequest,
+  VoiceMeasure,
+  VoiceSound,
+} from '../pipeline/contracts.js'
 import { ProviderError } from '../pipeline/errors.js'
 import type { TimeWindow } from '../pipeline/speech-windows.js'
 import { ProcessError, type ProcessRunner } from './process.js'
@@ -10,15 +19,31 @@ export interface FfmpegOptions {
   run: ProcessRunner
   ffmpegPath?: string
   ffprobePath?: string
-  /** Python with numpy, for the noise floor under the dub and the delivery measurements. Without it the dub skips both. */
+  /** Python with numpy, for the noise floor under the dub and the voice analysis. Without it the dub skips both. */
   pythonPath?: string
   roomToneScript?: string
-  deliveryScript?: string
+  voiceAnalysisScript?: string
 }
 
 /** apps/worker/scripts/*.py, from src/drivers or dist/drivers alike. */
 const ROOM_TONE_SCRIPT = fileURLToPath(new URL('../../scripts/room_tone.py', import.meta.url))
-const DELIVERY_SCRIPT = fileURLToPath(new URL('../../scripts/delivery.py', import.meta.url))
+const VOICE_ANALYSIS_SCRIPT = fileURLToPath(new URL('../../scripts/voice_analysis.py', import.meta.url))
+
+/** How different two frames must be to count as a cut (ffmpeg's scene score, 0 to 1). */
+const SCENE_CUT = 0.25
+/** Cuts closer than this are one cut (a fade or a flash). */
+const SAME_CUT_MS = 150
+/** Wide enough for the translator to read captions in the picture, small enough to stay cheap. */
+const FRAME_WIDTH = 512
+
+interface RawVoiceAnalysis {
+  usual: VoiceAnalysis['usual']
+  lines: ({ idx: number } & VoiceMeasure)[]
+  sounds: VoiceSound[]
+  envelope: VoiceAnalysis['envelope']
+}
+
+const pairs = (spans: readonly TimeWindow[] = []) => spans.map((s) => [Math.round(s.startMs), Math.round(s.endMs)])
 
 function mapProcessError(error: unknown, what: string): never {
   if (error instanceof ProcessError) {
@@ -142,35 +167,86 @@ export class FfmpegMediaProcessor implements MediaProcessor {
   }
 
   /**
-   * How each line was said, from the voice track (scripts/delivery.py). Like the room tone it is an improvement, not
-   * a requirement: without Python, or if the script fails, the translator works from the words and timing alone.
+   * How each line of a voice track was performed (scripts/voice_analysis.py). Like the room tone it is an improvement,
+   * not a requirement: without Python, or if the script fails, the dub goes on from the words and timing alone.
    */
-  async measureDelivery(
-    vocalsPath: string,
-    lines: { idx: number; startMs: number; endMs: number }[],
-    ctx: StageContext,
-  ): Promise<Map<number, Delivery> | null> {
-    if (!this.opts.pythonPath || lines.length === 0) return null
-    const linesPath = path.join(ctx.workdir, 'delivery_lines.json')
-    const out = path.join(ctx.workdir, 'delivery.json')
-    await writeFile(linesPath, JSON.stringify(lines.map(({ idx, startMs, endMs }) => ({ idx, startMs, endMs }))))
+  async analyzeVoice(vocalsPath: string, request: VoiceAnalysisRequest, ctx: StageContext): Promise<VoiceAnalysis | null> {
+    if (!this.opts.pythonPath || request.lines.length === 0) return null
+    const name = path.parse(vocalsPath).name
+    const input = path.join(ctx.workdir, `${name}.analysis-request.json`)
+    const out = path.join(ctx.workdir, `${name}.analysis.json`)
+    await writeFile(
+      input,
+      JSON.stringify({
+        lines: request.lines.map((line) => ({ idx: line.idx, spans: pairs(line.spans) })),
+        words: pairs(request.words),
+        events: pairs(request.events),
+      }),
+    )
     try {
-      await this.opts.run(this.opts.pythonPath, [this.opts.deliveryScript ?? DELIVERY_SCRIPT, vocalsPath, linesPath, out], {
+      await this.opts.run(this.opts.pythonPath, [this.opts.voiceAnalysisScript ?? VOICE_ANALYSIS_SCRIPT, vocalsPath, input, out], {
         cwd: ctx.workdir,
         signal: ctx.signal,
       })
-      const rows = JSON.parse(await readFile(out, 'utf8')) as ({ idx: number } & Record<keyof Delivery, number | null>)[]
-      return new Map(
-        rows.map(({ idx, ...measured }) => [
-          idx,
-          Object.fromEntries(Object.entries(measured).filter(([, value]) => typeof value === 'number')) as Delivery,
-        ]),
+      const raw = JSON.parse(await readFile(out, 'utf8')) as RawVoiceAnalysis
+      return {
+        usual: raw.usual,
+        lines: new Map(raw.lines.map(({ idx, ...measure }) => [idx, measure])),
+        sounds: raw.sounds,
+        envelope: raw.envelope,
+      }
+    } catch (error) {
+      if (ctx.signal.aborted) throw error
+      ctx.log.warn({ error }, 'voice not analysed: the dub goes on from the words and timing alone')
+      return null
+    }
+  }
+
+  /** Cuts are a help for timing, never a requirement: on failure there are none. */
+  async sceneCuts(videoPath: string, ctx: StageContext): Promise<number[]> {
+    let result: { stderr: string }
+    try {
+      // A small copy of each frame is plenty to see a cut, and much faster to compare.
+      result = await this.opts.run(
+        this.ffmpeg,
+        ['-nostdin', '-hide_banner', '-i', videoPath, '-an', '-vf', `scale=160:-2,select='gt(scene,${SCENE_CUT})',showinfo`, '-f', 'null', '-'],
+        { cwd: ctx.workdir, signal: ctx.signal },
       )
     } catch (error) {
       if (ctx.signal.aborted) throw error
-      ctx.log.warn({ error }, 'delivery not measured: the translator works from the words and timing alone')
-      return null
+      ctx.log.warn({ error }, 'scene cuts not found: timing goes by the words alone')
+      return []
     }
+    const cuts: number[] = []
+    for (const match of result.stderr.matchAll(/pts_time:([\d.]+)/g)) {
+      const ms = Math.round(Number(match[1]) * 1000)
+      if (Number.isFinite(ms) && (cuts.length === 0 || ms - cuts.at(-1)! > SAME_CUT_MS)) cuts.push(ms)
+    }
+    return cuts
+  }
+
+  async frames(videoPath: string, timesMs: number[], ctx: StageContext): Promise<Frame[]> {
+    const dir = path.join(ctx.workdir, 'frames')
+    await mkdir(dir, { recursive: true })
+    const frames: Frame[] = []
+    for (const timeMs of timesMs) {
+      const out = path.join(dir, `${Math.round(timeMs)}.jpg`)
+      try {
+        await this.opts.run(
+          this.ffmpeg,
+          [
+            '-nostdin', '-hide_banner', '-loglevel', 'error', '-y', '-ss', seconds(timeMs), '-i', videoPath,
+            '-frames:v', '1', '-vf', `scale='min(${FRAME_WIDTH},iw)':-2`, '-q:v', '5', out,
+          ],
+          { cwd: ctx.workdir, signal: ctx.signal },
+        )
+        frames.push({ timeMs, path: out })
+      } catch (error) {
+        if (ctx.signal.aborted) throw error
+      }
+    }
+    if (frames.length < timesMs.length) ctx.log.warn({ missing: timesMs.length - frames.length }, 'some video frames could not be read')
+    return frames
   }
 
   async buildDubBackground(

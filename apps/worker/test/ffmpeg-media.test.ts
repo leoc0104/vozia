@@ -125,41 +125,86 @@ describe('FfmpegDuckSeparator', () => {
   })
 })
 
-describe('FfmpegMediaProcessor.measureDelivery', () => {
-  const lines = [
-    { idx: 0, startMs: 0, endMs: 1200 },
-    { idx: 1, startMs: 1500, endMs: 3000 },
-  ]
+describe('FfmpegMediaProcessor.analyzeVoice', () => {
+  const request = {
+    lines: [
+      { idx: 0, spans: [{ startMs: 0, endMs: 500 }, { startMs: 600, endMs: 1200 }] },
+      { idx: 1, spans: [{ startMs: 1500, endMs: 3000 }] },
+    ],
+    words: [{ startMs: 0, endMs: 500 }],
+    events: [{ startMs: 3100.4, endMs: 3900 }],
+  }
+  const measure = (loudnessDb: number | null, pitchSt: number | null) => ({
+    loudnessDb, pitchSt, rangeSt: 4, peakSt: 20, endingSt: -2, voiced: 0.8,
+  })
 
-  it('measures each line with the delivery script and keeps only the numbers it could measure', async () => {
+  it('measures each line, the wordless voice and the level curve with the voice analysis script', async () => {
     const { runner, calls } = createRecordingRunner((cmd, args) => {
       if (cmd !== '/py') return undefined
-      writeFileSync(args[3]!, JSON.stringify([
-        { idx: 0, loudnessDb: 3.2, pitchSt: 4.1, pitchRangeSt: 11.5 },
-        { idx: 1, loudnessDb: -1, pitchSt: null, pitchRangeSt: null },
-      ]))
+      writeFileSync(args[3]!, JSON.stringify({
+        usual: { loudnessDb: -13, pitchSt: 13 },
+        lines: [{ idx: 0, ...measure(-12, 14) }, { idx: 1, ...measure(-14, null) }],
+        sounds: [{ startMs: 3950, endMs: 4400, loudnessDb: -16, pitchSt: 31, voiced: 0.5 }],
+        envelope: { stepMs: 10, db: [-40, -12] },
+      }))
       return {}
     })
-    const media = new FfmpegMediaProcessor({ run: runner, pythonPath: '/py', deliveryScript: '/s/delivery.py' })
+    const media = new FfmpegMediaProcessor({ run: runner, pythonPath: '/py', voiceAnalysisScript: '/s/voice_analysis.py' })
     const ctx = await stageContext()
-    const delivery = await media.measureDelivery('/a/vocals.wav', lines, ctx)
+    const analysis = await media.analyzeVoice('/a/vocals.wav', request, ctx)
 
-    const linesPath = path.join(ctx.workdir, 'delivery_lines.json')
-    expect(calls[0]).toEqual({ cmd: '/py', args: ['/s/delivery.py', '/a/vocals.wav', linesPath, path.join(ctx.workdir, 'delivery.json')], cwd: ctx.workdir })
-    expect(JSON.parse(await readFile(linesPath, 'utf8'))).toEqual(lines)
-    expect(delivery).toEqual(new Map([
-      [0, { loudnessDb: 3.2, pitchSt: 4.1, pitchRangeSt: 11.5 }],
-      [1, { loudnessDb: -1 }],
-    ]))
+    const input = path.join(ctx.workdir, 'vocals.analysis-request.json')
+    expect(calls[0]).toEqual({
+      cmd: '/py',
+      args: ['/s/voice_analysis.py', '/a/vocals.wav', input, path.join(ctx.workdir, 'vocals.analysis.json')],
+      cwd: ctx.workdir,
+    })
+    expect(JSON.parse(await readFile(input, 'utf8'))).toEqual({
+      lines: [{ idx: 0, spans: [[0, 500], [600, 1200]] }, { idx: 1, spans: [[1500, 3000]] }],
+      words: [[0, 500]],
+      events: [[3100, 3900]],
+    })
+    expect(analysis).toEqual({
+      usual: { loudnessDb: -13, pitchSt: 13 },
+      lines: new Map([[0, measure(-12, 14)], [1, measure(-14, null)]]),
+      sounds: [{ startMs: 3950, endMs: 4400, loudnessDb: -16, pitchSt: 31, voiced: 0.5 }],
+      envelope: { stepMs: 10, db: [-40, -12] },
+    })
   })
 
   it('goes on without measurements when the script fails or there is no Python', async () => {
     const { runner } = createRecordingRunner(() => ({ fail: 'ModuleNotFoundError: numpy' }))
     const ctx = await stageContext()
     const warn = vi.spyOn(ctx.log, 'warn')
-    expect(await new FfmpegMediaProcessor({ run: runner, pythonPath: '/py' }).measureDelivery('/a/v.wav', lines, ctx)).toBeNull()
+    expect(await new FfmpegMediaProcessor({ run: runner, pythonPath: '/py' }).analyzeVoice('/a/v.wav', request, ctx)).toBeNull()
     expect(warn).toHaveBeenCalledOnce()
-    expect(await new FfmpegMediaProcessor({ run: runner }).measureDelivery('/a/v.wav', lines, ctx)).toBeNull()
+    expect(await new FfmpegMediaProcessor({ run: runner }).analyzeVoice('/a/v.wav', request, ctx)).toBeNull()
+  })
+})
+
+describe('FfmpegMediaProcessor.sceneCuts and frames', () => {
+  it('finds the cuts on a small copy of the picture, as one cut when two come within 150 ms', async () => {
+    const stderr = 'n:0 pts_time:10.23 x\nn:1 pts_time:22.407 x\nn:2 pts_time:22.473 x\nn:3 pts_time:25.311 x\n'
+    const { runner, calls } = createRecordingRunner(() => ({ stderr }))
+    const ctx = await stageContext()
+    expect(await new FfmpegMediaProcessor({ run: runner }).sceneCuts('/v.mp4', ctx)).toEqual([10_230, 22_407, 25_311])
+    expect(calls[0]!.args).toContain("scale=160:-2,select='gt(scene,0.25)',showinfo")
+  })
+
+  it('has no cuts when the video cannot be read', async () => {
+    const { runner } = createRecordingRunner(() => ({ fail: 'Invalid data found when processing input' }))
+    expect(await new FfmpegMediaProcessor({ run: runner }).sceneCuts('/v.mp4', await stageContext())).toEqual([])
+  })
+
+  it('grabs a small JPEG at each time and skips the ones it cannot read', async () => {
+    const { runner, calls } = createRecordingRunner((_cmd, args) => (args.includes('99.000') ? { fail: 'end of file' } : undefined))
+    const ctx = await stageContext()
+    const frames = await new FfmpegMediaProcessor({ run: runner }).frames('/v.mp4', [1500, 99_000], ctx)
+    expect(frames).toEqual([{ timeMs: 1500, path: path.join(ctx.workdir, 'frames', '1500.jpg') }])
+    expect(calls[0]!.args).toEqual([
+      '-nostdin', '-hide_banner', '-loglevel', 'error', '-y', '-ss', '1.500', '-i', '/v.mp4',
+      '-frames:v', '1', '-vf', "scale='min(512,iw)':-2", '-q:v', '5', path.join(ctx.workdir, 'frames', '1500.jpg'),
+    ])
   })
 })
 

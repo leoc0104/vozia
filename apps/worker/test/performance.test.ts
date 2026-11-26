@@ -1,5 +1,17 @@
 import { describe, expect, it } from 'vitest'
-import { attachSounds, hasDirections, lineNotes, paceByLine, performedTiming, stripDirections } from '../src/pipeline/performance.js'
+import type { VoiceAnalysis, VoiceMeasure } from '../src/pipeline/contracts.js'
+import {
+  attachSounds,
+  describeMelody,
+  hasDirections,
+  lineNotes,
+  paceByLine,
+  performedTiming,
+  relativeDelivery,
+  stripDirections,
+  voiceAnalysisRequest,
+  wordlessVoice,
+} from '../src/pipeline/performance.js'
 
 const line = (idx: number, startMs: number, endMs: number, text = 'hello world', speaker: string | null = null) => ({
   idx,
@@ -58,20 +70,80 @@ describe('paceByLine', () => {
   })
 })
 
+const measure = (over: Partial<VoiceMeasure> = {}): VoiceMeasure => ({
+  loudnessDb: -13, pitchSt: 13, rangeSt: 6, peakSt: 18, endingSt: 0, voiced: 0.8, ...over,
+})
+const analysisOf = (lines: [number, VoiceMeasure][], sounds: VoiceAnalysis['sounds'] = []): VoiceAnalysis => ({
+  usual: { loudnessDb: -13, pitchSt: 13 },
+  lines: new Map(lines),
+  sounds,
+  envelope: { stepMs: 10, db: [] },
+})
+
 describe('lineNotes', () => {
-  it('combines the measured delivery, the speed and the sounds of each line', () => {
+  it('combines the measured delivery, its melody in words, the speed and the sounds of each line', () => {
     const lines = [line(0, 1000, 3000), line(1, 6000, 8000)]
     const attached = attachSounds(lines, [sound('risos', 3200, 4000)])
-    const notes = lineNotes(lines, attached, new Map([[0, { loudnessDb: 6, pitchSt: 3 }]]))
+    const analysis = analysisOf([[0, measure({ loudnessDb: -7, pitchSt: 24.4, rangeSt: 14.2, peakSt: 28.3, endingSt: 3.5 })]])
+    const notes = lineNotes(lines, attached, analysis)
     expect(notes.get(0)).toEqual({
-      delivery: { loudnessDb: 6, pitchSt: 3, pace: 1 },
+      delivery: { loudnessDb: 6, pitchSt: 11.4, pitchRangeSt: 14.2, peakSt: 15.3, endingSt: 3.5, pace: 1 },
+      melody: 'very high voice, loud, very animated, peaks in a scream or a shout, rises at the end',
       sounds: [{ id: 0, label: 'risos', position: 'after', atSec: 2.2, seconds: 0.8 }],
     })
-    expect(notes.get(1)).toEqual({ delivery: { pace: 1 } })
+    expect(notes.get(1)).toEqual({ delivery: { pace: 1 }, melody: 'ordinary, conversational' })
   })
 
   it('still gives the speed when the audio could not be measured', () => {
-    expect(lineNotes([line(0, 0, 1000)], new Map(), null).get(0)).toEqual({ delivery: { pace: 1 } })
+    expect(lineNotes([line(0, 0, 1000)], new Map(), null).get(0)).toEqual({ delivery: { pace: 1 }, melody: 'ordinary, conversational' })
+  })
+
+  it('tells where the picture cuts inside a line, counting a cut just before its first word', () => {
+    const notes = lineNotes([line(0, 25_300, 26_260), line(1, 27_000, 28_300)], new Map(), null, [25_211, 26_900, 27_800, 30_000])
+    expect(notes.get(0)!.cuts).toEqual([0])
+    expect(notes.get(1)!.cuts).toEqual([0, 0.8])
+  })
+})
+
+describe('describeMelody', () => {
+  it('says flat lines are flat, so the dub does not over-act them', () => {
+    expect(describeMelody({ pitchSt: -1.3, pitchRangeSt: 2.4, peakSt: 1.2, endingSt: -0.5 })).toBe('flat, almost monotone')
+    expect(describeMelody({ pitchSt: -3.5, pitchRangeSt: 6.6, endingSt: -4, pace: 0.7 })).toBe('low voice, falls at the end, slow')
+    expect(describeMelody({ pitchSt: 5, loudnessDb: -7, pitchRangeSt: 9, pace: 1.4 })).toBe('raised voice, quiet, lively, fast')
+  })
+})
+
+describe('voice analysis glue', () => {
+  it('asks to measure each line over its words, and where words and tagged sounds are', () => {
+    const segments = [
+      { ...line(0, 1000, 3000), words: [{ text: 'a', startMs: 1000, endMs: 1400 }, { text: 'b', startMs: 2000, endMs: 3000 }] },
+      line(1, 6000, 8000),
+    ]
+    expect(voiceAnalysisRequest(segments, [sound('risos', 3200, 4000)])).toEqual({
+      lines: [
+        { idx: 0, spans: [{ startMs: 1000, endMs: 1400 }, { startMs: 2000, endMs: 3000 }] },
+        { idx: 1, spans: [{ startMs: 6000, endMs: 8000 }] },
+      ],
+      words: [{ startMs: 1000, endMs: 1400 }, { startMs: 2000, endMs: 3000 }, { startMs: 6000, endMs: 8000 }],
+      events: [{ startMs: 3200, endMs: 4000 }],
+    })
+  })
+
+  it('turns wordless voice into sounds that know how loud and high they were', () => {
+    const analysis = analysisOf([], [{ startMs: 11_818, endMs: 12_137, loudnessDb: -16.3, pitchSt: 31.4, voiced: 0.5 }])
+    expect(wordlessVoice(analysis)).toEqual([
+      { label: 'voice without words', startMs: 11_818, endMs: 12_137, untagged: { loudnessDb: -3.3, pitchSt: 18.4 } },
+    ])
+    const attached = attachSounds([line(0, 9000, 11_780)], wordlessVoice(analysis)).get(0)!
+    expect(attached[0]).toMatchObject({ position: 'after', untagged: { loudnessDb: -3.3, pitchSt: 18.4 } })
+    expect(wordlessVoice(null)).toEqual([])
+  })
+
+  it('reads measures against the usual line, skipping what could not be measured', () => {
+    expect(relativeDelivery(measure({ pitchSt: null, peakSt: null, endingSt: null }), { loudnessDb: -13, pitchSt: 13 })).toEqual({
+      loudnessDb: 0,
+      pitchRangeSt: 6,
+    })
   })
 })
 

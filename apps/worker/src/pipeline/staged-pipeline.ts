@@ -17,7 +17,7 @@ import type {
   VideoIngestor,
 } from './contracts.js'
 import { PipelineError } from './errors.js'
-import { attachSounds, lineNotes, performedTiming } from './performance.js'
+import { attachSounds, lineNotes, performedTiming, voiceAnalysisRequest, wordlessVoice } from './performance.js'
 import { speechWindows } from './speech-windows.js'
 
 /** The most the new voice is raised or lowered to match the original, so a bad measurement cannot ruin the mix. */
@@ -69,16 +69,19 @@ export class StagedPipeline implements DubbingPipeline {
     await this.d.repo.patchDub(dub.id, { detected_language: transcript.language })
 
     await ctx.setStage('translating')
-    // How each line was performed: the speaker's own laughs, screams or sighs next to it, and how loud, high and
-    // lively it was against their usual delivery. The translator directs the dubbed performance from these.
-    const sounds = attachSounds(transcript.segments, transcript.events ?? [])
-    const delivery = await this.d.media.measureDelivery(vocalsPath, transcript.segments, ctx)
+    // How each line was performed: how loud, high and lively it was against the speaker's usual line, the laughs,
+    // screams or sighs next to it (tagged, or found as voice without words), and where the picture cuts. The
+    // translator directs the dubbed performance from these.
+    const tagged = transcript.events ?? []
+    const analysis = await this.d.media.analyzeVoice(vocalsPath, voiceAnalysisRequest(transcript.segments, tagged), ctx)
+    const sounds = attachSounds(transcript.segments, [...tagged, ...wordlessVoice(analysis)])
+    const cuts = await this.d.media.sceneCuts(ingest.videoPath, ctx)
     const translated = await this.d.translator.translate(
       transcript.segments,
       {
         sourceLanguage: transcript.language,
         targetLanguage: dub.target_language,
-        notes: lineNotes(transcript.segments, sounds, delivery),
+        notes: lineNotes(transcript.segments, sounds, analysis, cuts),
       },
       ctx,
     )

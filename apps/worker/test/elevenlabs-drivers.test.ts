@@ -21,7 +21,19 @@ describe('ElevenLabsTranscriber', () => {
     const result = await new ElevenLabsTranscriber({ speechToText }).transcribe('/vocals.wav', { languageHint: null }, ctx)
     expect(result).toEqual({
       language: 'pt',
-      segments: [{ idx: 0, startMs: 0, endMs: 800, text: 'Olá mundo.', speaker: 's0' }],
+      segments: [
+        {
+          idx: 0,
+          startMs: 0,
+          endMs: 800,
+          text: 'Olá mundo.',
+          speaker: 's0',
+          words: [
+            { text: 'Olá', startMs: 0, endMs: 300, speaker: 's0' },
+            { text: 'mundo.', startMs: 400, endMs: 800, speaker: 's0' },
+          ],
+        },
+      ],
       events: [],
     })
     expect(speechToText).toHaveBeenCalledWith('/vocals.wav', { languageCode: null, diarize: true }, ctx.signal)

@@ -1,4 +1,13 @@
-import type { Delivery, LineNotes, LineSound, SoundEvent } from './contracts.js'
+import type {
+  Delivery,
+  LineNotes,
+  LineSound,
+  SoundEvent,
+  VoiceAnalysis,
+  VoiceAnalysisRequest,
+  VoiceMeasure,
+} from './contracts.js'
+import type { TimeWindow } from './speech-windows.js'
 
 interface Line {
   idx: number
@@ -42,6 +51,7 @@ export function attachSounds(lines: readonly Line[], events: readonly SoundEvent
       position: event.endMs <= line.startMs ? 'before' : event.startMs >= line.endMs ? 'after' : 'within',
       atSec: round1((event.startMs - line.startMs) / 1000),
       seconds: round1((event.endMs - event.startMs) / 1000),
+      ...(event.untagged ? { untagged: event.untagged } : {}),
       startMs: event.startMs,
       endMs: event.endMs,
     })
@@ -95,18 +105,100 @@ export function performedTiming<T extends { idx: number; startMs: number; endMs:
   })
 }
 
-/** Everything the translator gets to direct each line: measured delivery, speed, and the sounds around it. */
+/** What to ask the voice analysis about a transcript: each line over its words, and where words and tags are. */
+export function voiceAnalysisRequest(
+  segments: readonly (Line & { words?: readonly TimeWindow[] })[],
+  events: readonly SoundEvent[],
+): VoiceAnalysisRequest {
+  const span = (w: TimeWindow): TimeWindow => ({ startMs: w.startMs, endMs: w.endMs })
+  return {
+    lines: segments.map((s) => ({ idx: s.idx, spans: s.words?.length ? s.words.map(span) : [span(s)] })),
+    words: segments.flatMap((s) => (s.words ?? [s]).map(span)),
+    events: events.map(span),
+  }
+}
+
+/** A line's measures against the speaker's usual line, in the terms the translator reads. */
+export function relativeDelivery(measure: VoiceMeasure, usual: VoiceAnalysis['usual']): Delivery {
+  const delivery: Delivery = {}
+  if (measure.loudnessDb !== null && usual.loudnessDb !== null) delivery.loudnessDb = round1(measure.loudnessDb - usual.loudnessDb)
+  if (measure.pitchSt !== null && usual.pitchSt !== null) delivery.pitchSt = round1(measure.pitchSt - usual.pitchSt)
+  if (measure.rangeSt !== null) delivery.pitchRangeSt = measure.rangeSt
+  if (measure.peakSt !== null && usual.pitchSt !== null) delivery.peakSt = round1(measure.peakSt - usual.pitchSt)
+  if (measure.endingSt !== null) delivery.endingSt = measure.endingSt
+  return delivery
+}
+
+/** The delivery in plain words, so the translator hears the melody and not only numbers. */
+export function describeMelody(delivery: Delivery): string {
+  const { pitchSt, loudnessDb, pitchRangeSt, peakSt, endingSt, pace } = delivery
+  const parts: string[] = []
+  if (pitchSt !== undefined) {
+    if (pitchSt >= 8) parts.push('very high voice')
+    else if (pitchSt >= 4) parts.push('raised voice')
+    else if (pitchSt <= -3) parts.push('low voice')
+  }
+  if (loudnessDb !== undefined) {
+    if (loudnessDb >= 6) parts.push('loud')
+    else if (loudnessDb <= -6) parts.push('quiet')
+  }
+  if (pitchRangeSt !== undefined) {
+    if (pitchRangeSt < 4) parts.push('flat, almost monotone')
+    else if (pitchRangeSt >= 12) parts.push('very animated')
+    else if (pitchRangeSt >= 8) parts.push('lively')
+  }
+  if (peakSt !== undefined && peakSt >= 14) parts.push('peaks in a scream or a shout')
+  if (endingSt !== undefined) {
+    if (endingSt >= 3) parts.push('rises at the end')
+    else if (endingSt <= -3) parts.push('falls at the end')
+  }
+  if (pace !== undefined) {
+    if (pace >= 1.3) parts.push('fast')
+    else if (pace <= 0.75) parts.push('slow')
+  }
+  return parts.length > 0 ? parts.join(', ') : 'ordinary, conversational'
+}
+
+/** The label of voice found by measurement: there is no tag to read, so the translator goes by context. */
+export const WORDLESS_VOICE = 'voice without words'
+
+/** The voice analysis' wordless voice, as sounds that can be tied to lines and performed like tagged ones. */
+export function wordlessVoice(analysis: VoiceAnalysis | null): SoundEvent[] {
+  if (!analysis) return []
+  const { usual } = analysis
+  return analysis.sounds.map((sound) => ({
+    label: WORDLESS_VOICE,
+    startMs: sound.startMs,
+    endMs: sound.endMs,
+    untagged: {
+      ...(sound.loudnessDb !== null && usual.loudnessDb !== null ? { loudnessDb: round1(sound.loudnessDb - usual.loudnessDb) } : {}),
+      ...(sound.pitchSt !== null && usual.pitchSt !== null ? { pitchSt: round1(sound.pitchSt - usual.pitchSt) } : {}),
+    },
+  }))
+}
+
+/** A cut this close before a line's first word still counts as the line starting on the cut. */
+export const CUT_SLACK_MS = 120
+
+/** Everything the translator gets to direct each line: measured delivery and melody, speed, sounds and cuts. */
 export function lineNotes(
   lines: readonly Line[],
   sounds: ReadonlyMap<number, readonly AttachedSound[]>,
-  delivery: ReadonlyMap<number, Delivery> | null,
+  analysis: VoiceAnalysis | null,
+  cutsMs: readonly number[] = [],
 ): Map<number, LineNotes> {
   const pace = paceByLine(lines)
   return new Map(
     lines.map((line) => {
-      const notes: LineNotes = { delivery: { ...delivery?.get(line.idx), pace: pace.get(line.idx) } }
+      const measure = analysis?.lines.get(line.idx)
+      const delivery: Delivery = { ...(measure && analysis ? relativeDelivery(measure, analysis.usual) : {}), pace: pace.get(line.idx) }
+      const notes: LineNotes = { delivery, melody: describeMelody(delivery) }
       const near = sounds.get(line.idx) ?? []
       if (near.length > 0) notes.sounds = near.map(({ startMs: _start, endMs: _end, ...sound }) => sound)
+      const cuts = cutsMs
+        .filter((cut) => cut >= line.startMs - CUT_SLACK_MS && cut <= line.endMs)
+        .map((cut) => Math.max(0, round1((cut - line.startMs) / 1000)))
+      if (cuts.length > 0) notes.cuts = cuts
       return [line.idx, notes]
     }),
   )

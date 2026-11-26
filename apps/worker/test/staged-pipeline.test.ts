@@ -67,7 +67,13 @@ describe('StagedPipeline', () => {
       const media = new FakeMedia()
       const translator = new FakeTranslator()
       const spies = {
-        measure: vi.spyOn(media, 'measureDelivery').mockResolvedValue(new Map([[0, { loudnessDb: 7, pitchSt: 5 }]])),
+        measure: vi.spyOn(media, 'analyzeVoice').mockResolvedValue({
+          usual: { loudnessDb: -13, pitchSt: 13 },
+          lines: new Map([[0, { loudnessDb: -6, pitchSt: 18, rangeSt: 6, peakSt: 20, endingSt: 1, voiced: 0.8 }]]),
+          sounds: [],
+          envelope: { stepMs: 10, db: [] },
+        }),
+        cuts: vi.spyOn(media, 'sceneCuts').mockResolvedValue([7950]),
         translate: vi.spyOn(translator, 'translate'),
         synthesize: vi.spyOn(synthesizer, 'synthesize'),
         background: vi.spyOn(media, 'buildDubBackground'),
@@ -82,14 +88,17 @@ describe('StagedPipeline', () => {
       const { measure, translate, synthesize, background, repo } = await dub(new FakeSynthesizer({ performsDirections: true }))
 
       expect(measure.mock.calls[0]![0]).toMatch(/vocals/)
-      expect(measure.mock.calls[0]![1].map((s) => s.idx)).toEqual([0, 1])
+      expect(measure.mock.calls[0]![1].lines.map((l) => l.idx)).toEqual([0, 1])
       const notes = translate.mock.calls[0]![1].notes!
       // "Socorro!" (7 letters in 2 s) is a little faster than this speaker's usual (3.25 letters per second).
       expect(notes.get(0)).toEqual({
-        delivery: { loudnessDb: 7, pitchSt: 5, pace: 1.08 },
+        delivery: { loudnessDb: 7, pitchSt: 5, pitchRangeSt: 6, peakSt: 7, endingSt: 1, pace: 1.08 },
+        melody: 'raised voice, loud',
         sounds: [{ id: 0, label: 'laughter', position: 'after', atSec: 2.2, seconds: 1.3 }],
       })
       expect(notes.get(1)!.sounds).toBeUndefined()
+      // The picture cuts 50 ms before "Ufa.": that line starts on the cut.
+      expect(notes.get(1)!.cuts).toEqual([0])
 
       const performed = synthesize.mock.calls[0]![0].segments
       expect(performed[0]).toMatchObject({ startMs: 1000, endMs: 4500, performanceText: 'Socorro! [laughter]', performedSounds: [0] })

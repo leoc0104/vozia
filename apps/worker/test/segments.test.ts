@@ -9,8 +9,8 @@ describe('groupWordsIntoSegments', () => {
   it('cuts at sentence ends and joins punctuation tightly', () => {
     const words = [w('Hello', 0, 300), w(',', 300, 300), w('there.', 400, 800), w('Welcome', 900, 1300), w('back!', 1400, 1800)]
     expect(groupWordsIntoSegments(words)).toEqual([
-      { idx: 0, startMs: 0, endMs: 800, text: 'Hello, there.', speaker: 's0' },
-      { idx: 1, startMs: 900, endMs: 1800, text: 'Welcome back!', speaker: 's0' },
+      { idx: 0, startMs: 0, endMs: 800, text: 'Hello, there.', speaker: 's0', words: words.slice(0, 3) },
+      { idx: 1, startMs: 900, endMs: 1800, text: 'Welcome back!', speaker: 's0', words: words.slice(3) },
     ])
   })
 

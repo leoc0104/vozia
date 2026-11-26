@@ -16,6 +16,8 @@ export interface TranscriptSegment {
   endMs: number
   text: string
   speaker?: string | null
+  /** The line's words with their timing, when the transcriber gives them. */
+  words?: Word[]
 }
 
 export interface TranslatedSegment extends TranscriptSegment {
@@ -34,6 +36,11 @@ export interface SoundEvent {
   endMs: number
   /** Who made it, when the transcriber could tell. */
   speaker?: string | null
+  /**
+   * Set for voice without words that no tag explains, found by measuring the voice track (crying, a scream...):
+   * how loud and how high it was against the speaker's usual line.
+   */
+  untagged?: { loudnessDb?: number; pitchSt?: number }
 }
 
 /** A sound heard during or right next to a line, which the dub re-performs when it came from the speaker's voice. */
@@ -46,6 +53,8 @@ export interface LineSound {
   atSec: number
   /** How long the sound lasts. */
   seconds: number
+  /** For a sound found by measurement rather than tagged: how loud and how high, against the usual line. */
+  untagged?: { loudnessDb?: number; pitchSt?: number }
 }
 
 /** How a line was said, measured from the original audio relative to the speaker's usual delivery. */
@@ -56,6 +65,10 @@ export interface Delivery {
   pitchSt?: number
   /** How far the pitch moves within the line, in semitones: about 4 is flat, 10 or more is very lively. */
   pitchRangeSt?: number
+  /** The top of the line against the usual pitch, in semitones: a scream or a shouted word reaches +10 or more. */
+  peakSt?: number
+  /** How the line ends, in semitones: + rises at the end, − falls. */
+  endingSt?: number
   /** Speaking speed relative to usual: 1 is usual, 1.3 is 30% faster. */
   pace?: number
 }
@@ -63,7 +76,54 @@ export interface Delivery {
 /** What the translator needs to direct the dubbed performance of one line. */
 export interface LineNotes {
   delivery?: Delivery
+  /** The delivery in plain words, like "raised voice, very lively, rises at the end". */
+  melody?: string
   sounds?: LineSound[]
+  /** Seconds from the start of the line where the picture cuts: words spoken there are tied to the picture. */
+  cuts?: number[]
+}
+
+/** Absolute measures of a stretch of voice: dBFS and semitones above 100 Hz (see scripts/voice_analysis.py). */
+export interface VoiceMeasure {
+  loudnessDb: number | null
+  pitchSt: number | null
+  rangeSt: number | null
+  peakSt: number | null
+  endingSt: number | null
+  /** Share of the audible frames that are voiced. */
+  voiced: number | null
+}
+
+/** Voice without words that no tag explains, like crying or a scream. */
+export interface VoiceSound {
+  startMs: number
+  endMs: number
+  loudnessDb: number | null
+  pitchSt: number | null
+  voiced: number | null
+}
+
+export interface VoiceAnalysisRequest {
+  /** What to measure: each line over its spans (its words when known, else the whole line). */
+  lines: { idx: number; spans: TimeWindow[] }[]
+  /** Every spoken word and every tagged sound, which the search for wordless voice skips. */
+  words?: TimeWindow[]
+  events?: TimeWindow[]
+}
+
+export interface VoiceAnalysis {
+  /** The speaker's usual line: medians over the lines. */
+  usual: { loudnessDb: number | null; pitchSt: number | null }
+  lines: Map<number, VoiceMeasure>
+  sounds: VoiceSound[]
+  /** The track's level every `stepMs`, in dB, so edits can cut where it is quiet. */
+  envelope: { stepMs: number; db: number[] }
+}
+
+/** A frame of the video, as a JPEG, for the translator to see. */
+export interface Frame {
+  timeMs: number
+  path: string
 }
 
 /** What every driver receives: a scratch directory, a logger, an abort signal and a progress sink. */
@@ -145,12 +205,12 @@ export interface MediaProcessor {
   thumbnail(videoPath: string, ctx: StageContext): Promise<string>
   clipAudio(inputPath: string, opts: { startSec: number; durationSec: number }, ctx: StageContext): Promise<string>
   duck(audioPath: string, gainDb: number, ctx: StageContext): Promise<string>
-  /** How each line was said, measured from the voice track relative to the speaker's usual; null when unavailable. */
-  measureDelivery(
-    vocalsPath: string,
-    lines: { idx: number; startMs: number; endMs: number }[],
-    ctx: StageContext,
-  ): Promise<Map<number, Delivery> | null>
+  /** How each line of a voice track was performed, plus its wordless voice and level curve; null when unavailable. */
+  analyzeVoice(vocalsPath: string, request: VoiceAnalysisRequest, ctx: StageContext): Promise<VoiceAnalysis | null>
+  /** Where the picture cuts to a new shot, in milliseconds; empty when unknown. */
+  sceneCuts(videoPath: string, ctx: StageContext): Promise<number[]>
+  /** Small JPEG frames of the video at the given times; times that cannot be read are skipped. */
+  frames(videoPath: string, timesMs: number[], ctx: StageContext): Promise<Frame[]>
   /**
    * The bed under the dub: the original audio outside `speech`; inside it, the separated background plus the
    * original's steady noise floor, so the room keeps sounding the same while the new voice speaks. Short fades.
