@@ -40,13 +40,16 @@ describe('reviewTake', () => {
     expect(deadpan.feedback).toEqual([
       'It is much more animated than the original, which is flat (pitch moves 7 semitones, the original 2): play it flat and deadpan.',
     ])
+    expect(deadpan.direction).toBe('calmer')
     const theatrical = reviewTake({ original: { pitchRangeSt: 6.9 }, take: { pitchRangeSt: 18.5 }, alignment: fits() })
     expect(theatrical.feedback[0]).toMatch(/^It is far more theatrical than the original/)
+    expect(theatrical.direction).toBe('calmer')
     const scream = reviewTake({ original: { peakSt: 19.6, endingSt: 15.3 }, take: { peakSt: 14.7, endingSt: -14.9 }, alignment: fits() })
     expect(scream.feedback).toEqual([
       'The original peaks in a scream or a shout (+20 semitones); the take only reaches +15: make it a real scream or shout.',
       'The original rises at the end; the take falls.',
     ])
+    expect(scream.direction).toBe('livelier')
   })
 
   it('asks for a longer laugh when the take laughs for much less time, or not at all', () => {

@@ -47,7 +47,12 @@ export class ElevenLabsSynthesizer implements SpeechSynthesizer {
     const keepClone = this.opts.keepClonedVoice === true
     return {
       async speak(line, destPath, ctx) {
-        const base = { modelId, ...(languageCode ? { languageCode } : {}), ...(line.seed !== undefined ? { seed: line.seed } : {}) }
+        const base = {
+          modelId,
+          ...(languageCode ? { languageCode } : {}),
+          ...(line.seed !== undefined ? { seed: line.seed } : {}),
+          ...(line.stability !== undefined ? { stability: line.stability } : {}),
+        }
         const context = withContext && (line.previousText || line.nextText) ? { previousText: line.previousText, nextText: line.nextText } : null
         try {
           await client.textToSpeech(voiceId, line.text, { ...base, ...context }, destPath, ctx.signal)

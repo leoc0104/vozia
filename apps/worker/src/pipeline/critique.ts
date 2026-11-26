@@ -6,6 +6,8 @@ export interface TakeReview {
   score: number
   /** In plain words, for the translator to act on; empty when the take is good. */
   feedback: string[]
+  /** Which way the next take's delivery should go, when the take over- or under-played the original. */
+  direction?: 'calmer' | 'livelier'
 }
 
 export interface ReviewInput {
@@ -38,6 +40,7 @@ const st = (n: number) => `${n > 0 ? '+' : ''}${Math.round(n)}`
 export function reviewTake(input: ReviewInput, limits = LIMITS): TakeReview {
   const feedback: string[] = []
   let score = 0
+  let direction: TakeReview['direction']
   const { alignment, original, take } = input
 
   const ratio = alignment.lengthRatio
@@ -72,17 +75,21 @@ export function reviewTake(input: ReviewInput, limits = LIMITS): TakeReview {
       if (o < 5 && t > o + 4) {
         feedback.push(`It is much more animated than the original, which is flat (pitch moves ${Math.round(t)} semitones, the original ${Math.round(o)}): play it flat and deadpan.`)
         score += (t - o - 4) / 2
+        direction = 'calmer'
       } else if (o >= 8 && t < o - 5) {
         feedback.push(`It is flatter than the original (pitch moves ${Math.round(t)} semitones, the original ${Math.round(o)}): play it livelier.`)
         score += (o - 5 - t) / 2
+        direction = 'livelier'
       } else if (t > o * 2 && t - o > 6) {
         feedback.push(`It is far more theatrical than the original (pitch moves ${Math.round(t)} semitones, the original ${Math.round(o)}): tone it down.`)
         score += (t - o - 6) / 2
+        direction = 'calmer'
       }
     }
     if (original.peakSt !== undefined && original.peakSt >= 12 && take.peakSt !== undefined && take.peakSt < original.peakSt - 4) {
       feedback.push(`The original peaks in a scream or a shout (${st(original.peakSt)} semitones); the take only reaches ${st(take.peakSt)}: make it a real scream or shout.`)
       score += (original.peakSt - 4 - take.peakSt) / 2
+      direction ??= 'livelier'
     }
     if (original.endingSt !== undefined && take.endingSt !== undefined && Math.abs(original.endingSt) >= 3) {
       const opposite = Math.sign(original.endingSt) !== Math.sign(take.endingSt) && Math.abs(take.endingSt - original.endingSt) > 4
@@ -110,5 +117,5 @@ export function reviewTake(input: ReviewInput, limits = LIMITS): TakeReview {
     }
   }
 
-  return { score: Math.round(score * 100) / 100, feedback }
+  return { score: Math.round(score * 100) / 100, feedback, ...(direction ? { direction } : {}) }
 }

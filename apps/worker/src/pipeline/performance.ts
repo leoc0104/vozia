@@ -77,11 +77,19 @@ export function paceByLine(lines: readonly Line[]): Map<number, number> {
 const DIRECTION = /\[[^\]]+\]/g
 
 /**
- * A direction that makes a sound of its own, like [gasps] or [clears throat], rather than shaping the words, like
- * [panicked] or [laughing]. Directions are always written in English, so this list works for every language.
+ * The words of a direction that makes a sound of its own, in any form but the -ing one: [gasps], [quick gasp],
+ * [soft breath] or [deep grunt] make a sound, while [laughing] or [sobbing] shape the words they come with.
+ * Directions are always written in English, so this list works for every language.
  */
-const SOUND_DIRECTION =
-  /^(?:(?:starts?|bursts?(?: out)?) (?:laughing|crying|sobbing|screaming)|(?:laughs|chuckles|giggles|snickers|cackles|gasps|sighs|screams|shrieks|sobs|cries|whimpers|groans|moans|grunts|coughs|sneezes|sniffs|snorts|breathes|inhales|exhales|pants|yawns|gulps|swallows|wheezes|hums|squeals)\b.*|clears? (?:(?:his|her|their|my) )?throat|(?:a |deep |sharp |short )*breath)$/i
+const SOUND_WORD =
+  /^(?:gasp|laugh|laughter|chuckle|giggle|snicker|cackle|sigh|scream|shriek|sob|cry|cries|whimper|groan|moan|grunt|cough|sneeze|sniff|snort|breath|breathe|inhale|exhale|pant|yawn|gulp|swallow|wheeze|hum|squeal|yelp)s?$/
+
+/** Whether one part of a direction, like "quick gasp" in [quick gasp, terrified], makes a sound of its own. */
+function isSoundPart(part: string): boolean {
+  const lower = part.toLowerCase()
+  if (/^(?:starts?|bursts?(?: out)?)\s+\w+ing$/.test(lower) || /\bclears?\s+(?:\w+\s+)?throat\b/.test(lower)) return true
+  return lower.split(/[\s-]+/).some((word) => SOUND_WORD.test(word))
+}
 
 function trimEdgeSounds(performance: string, edge: 'start' | 'end'): string {
   const tokens = performance.split(/(\[[^\]]+\])/)
@@ -93,7 +101,7 @@ function trimEdgeSounds(performance: string, edge: 'start' | 'end'): string {
         .slice(1, -1)
         .split(',')
         .map((part) => part.trim())
-        .filter((part) => part !== '' && !SOUND_DIRECTION.test(part))
+        .filter((part) => part !== '' && !isSoundPart(part))
       tokens[i] = parts.length > 0 ? `[${parts.join(', ')}]` : ''
     } else if (/[\p{L}\p{N}]/u.test(token)) break
   }

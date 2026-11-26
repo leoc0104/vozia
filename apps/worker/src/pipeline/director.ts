@@ -76,11 +76,27 @@ interface Take {
   spoken: string
   path: string
   round: number
+  /** How free the voice was for this take (see stabilityFor). */
+  stability: number
   timing?: TakeTiming
   measure?: VoiceMeasure | null
   alignment?: Alignment
   review?: TakeReview
   delivery?: Delivery
+}
+
+/**
+ * How free the voice is for a take, from 0 (very expressive) to 1 (steady): steady for a flat, deadpan original,
+ * free for a scream or a very animated one. A re-take moves on from the last take: steadier when it over-acted,
+ * freer when it fell flat.
+ */
+export function stabilityFor(original: Delivery | undefined, previous?: { stability: number; direction?: 'calmer' | 'livelier' }): number {
+  const settle = (value: number) => Math.round(Math.min(0.9, Math.max(0.2, value)) * 100) / 100
+  if (previous) return settle(previous.stability + (previous.direction === 'calmer' ? 0.2 : previous.direction === 'livelier' ? -0.2 : 0))
+  const range = original?.pitchRangeSt
+  if (range !== undefined && range < 4) return 0.75
+  if ((range !== undefined && range >= 12) || (original?.peakSt ?? 0) >= 14) return 0.35
+  return 0.5
 }
 
 /** Silence between takes when they are joined for measuring: enough to keep their words apart. */
@@ -121,7 +137,8 @@ export async function directPerformance(deps: DirectorDeps, input: DirectorInput
     ctx,
   )
   try {
-    const firstTakes = await speak(voice, lines, lines, 1, spokenOf, clipsDir, ctx, (done) => ctx.progress((done / lines.length) * 0.6))
+    const firstStability = (segment: TranslatedSegment) => stabilityFor(input.notes.get(segment.idx)?.delivery)
+    const firstTakes = await speak(voice, lines, lines, 1, spokenOf, firstStability, clipsDir, ctx, (done) => ctx.progress((done / lines.length) * 0.6))
     const usual = await measure(deps, firstTakes, input.translateOptions.targetLanguage, ctx)
     if (!usual) return await unmeasured(deps, input, firstTakes, ctx)
     const takes = new Map(firstTakes.map((take) => [take.segment.idx, [take]]))
@@ -138,7 +155,12 @@ export async function directPerformance(deps: DirectorDeps, input: DirectorInput
       const byIdx = new Map(revised.map((segment) => [segment.idx, segment]))
       // A line the translator did not rewrite gets another take of the same words, which comes out differently.
       const again = flagged.map((take) => byIdx.get(take.segment.idx) ?? take.segment)
-      const retakes = await speak(voice, again, lines, round, spokenOf, clipsDir, ctx)
+      const previous = new Map(flagged.map((take) => [take.segment.idx, take]))
+      const nextStability = (segment: TranslatedSegment) => {
+        const last = previous.get(segment.idx)!
+        return stabilityFor(input.notes.get(segment.idx)?.delivery, { stability: last.stability, direction: last.review?.direction })
+      }
+      const retakes = await speak(voice, again, lines, round, spokenOf, nextStability, clipsDir, ctx)
       const measured = await measure(deps, retakes, input.translateOptions.targetLanguage, ctx)
       if (!measured) break
       for (const take of retakes) {
@@ -189,6 +211,7 @@ async function speak(
   all: readonly TranslatedSegment[],
   round: number,
   spokenOf: (segment: TranslatedSegment) => string,
+  stabilityOf: (segment: TranslatedSegment) => number,
   dir: string,
   ctx: StageContext,
   progress?: (done: number) => void,
@@ -197,18 +220,20 @@ async function speak(
   for (const [n, segment] of segments.entries()) {
     const at = all.findIndex((line) => line.idx === segment.idx)
     const spoken = spokenOf(segment)
+    const stability = stabilityOf(segment)
     const file = path.join(dir, `${segment.idx}-${round}.mp3`)
     await voice.speak(
       {
         text: spoken,
         previousText: all[at - 1]?.translatedText,
         nextText: all[at + 1]?.translatedText,
+        stability,
         ...(round > 1 ? { seed: round * 7919 + segment.idx } : {}),
       },
       file,
       ctx,
     )
-    takes.push({ segment, spoken, path: file, round })
+    takes.push({ segment, spoken, path: file, round, stability })
     progress?.(n + 1)
   }
   return takes

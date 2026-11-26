@@ -13,6 +13,8 @@ export const ALIGN = {
   gapMs: 40,
   /** A word said this close to a cut is tied to the picture. */
   cutMs: 150,
+  /** The longest pause put before a tied word when the take reaches it too early even at the slowest tempo. */
+  maxPauseMs: 500,
 }
 
 export interface TimedWord {
@@ -80,11 +82,9 @@ export function knotsFor(take: TakeTiming, target: LineTarget, opts = ALIGN): Kn
   if (said.length === 0) return []
   const atCut = (ms: number) => target.cutsMs.some((cut) => Math.abs(cut - ms) <= opts.cutMs)
   const firstOriginal = original[0]?.startMs ?? target.startMs
+  // A sound before the words is not tied to its own moment: it ends on the first word and starts as early as the
+  // room before the line allows (see alignTake's head), so it can never push the first word late.
   const knots: Knot[] = [{ takeMs: said[0]!.startMs, outMs: firstOriginal, weight: 'pin', label: said[0]!.text }]
-  const soundBefore = target.soundBefore && take.events.find((e) => e.endMs <= said[0]!.startMs + 50)
-  if (target.soundBefore && soundBefore) {
-    knots.unshift({ takeMs: soundBefore.startMs, outMs: target.soundBefore.startMs, weight: 'soft', label: 'sound before' })
-  }
   let fromSaid = 1
   let fromOriginal = 1
   for (const anchor of target.anchors) {
@@ -157,6 +157,9 @@ export function alignTake(take: TakeTiming, target: LineTarget, opts = ALIGN): A
     const tempo = clamp(length / Math.max(1, to.outMs - out), opts.minTempo, opts.maxTempo)
     pieces.push({ fromMs: from.takeMs, toMs: to.takeMs, outStartMs: Math.round(out), tempo: round3(tempo) })
     out += length / tempo
+    // Said faster than the original even at the slowest tempo: a short pause before the tied word keeps it on its
+    // moment, the way a speaker pauses before a word.
+    if (to.weight !== 'soft' && out < to.outMs - 60) out += Math.min(opts.maxPauseMs, to.outMs - out)
     errors.push({ label: to.label, weight: to.weight, errorMs: Math.round(out - to.outMs) })
   }
 

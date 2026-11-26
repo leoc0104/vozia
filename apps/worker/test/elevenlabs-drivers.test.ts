@@ -71,11 +71,11 @@ describe('ElevenLabsSynthesizer', () => {
     expect(client.addVoice.mock.calls[0]![1]).toBe('/w/sample.mp3')
 
     const dest = path.join(ctx.workdir, '0-1.mp3')
-    await voice.speak({ text: '[panicked] Help!', previousText: 'Oh my God.', nextText: 'It touched me.', seed: 7 }, dest, ctx)
+    await voice.speak({ text: '[panicked] Help!', previousText: 'Oh my God.', nextText: 'It touched me.', seed: 7, stability: 0.35 }, dest, ctx)
     expect(client.textToSpeech.mock.calls[0]!.slice(0, 4)).toEqual([
       'clone-1',
       '[panicked] Help!',
-      { modelId: 'eleven_v4', languageCode: 'en', seed: 7, previousText: 'Oh my God.', nextText: 'It touched me.' },
+      { modelId: 'eleven_v4', languageCode: 'en', seed: 7, stability: 0.35, previousText: 'Oh my God.', nextText: 'It touched me.' },
       dest,
     ])
     await voice.close(ctx)

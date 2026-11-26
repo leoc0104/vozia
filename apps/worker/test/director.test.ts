@@ -3,7 +3,7 @@ import path from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { FakeMedia, FakeSynthesizer, FakeTranscriber, FakeTranslator } from '../src/drivers/fake/index.js'
 import type { StageContext, Transcriber, TranslatedSegment, VoiceAnalysis, VoiceAnalysisRequest } from '../src/pipeline/contracts.js'
-import { directPerformance, toTimeline, type DirectorInput } from '../src/pipeline/director.js'
+import { directPerformance, stabilityFor, toTimeline, type DirectorInput } from '../src/pipeline/director.js'
 import { stageContext } from './helpers/factories.js'
 
 const MS_PER_WORD = 400
@@ -110,7 +110,7 @@ describe('directPerformance', () => {
   it('clones from calm speech and speaks every line with the lines around it as context', async () => {
     const { synthesizer, sample } = await direct()
     expect(sample.mock.calls[0]![1]).toEqual([{ startMs: 950, endMs: 2120 }, { startMs: 2950, endMs: 3920 }])
-    expect(synthesizer.spoken[0]).toEqual({ text: 'Oh my God', nextText: 'Help me please somebody help me now' })
+    expect(synthesizer.spoken[0]).toEqual({ text: 'Oh my God', nextText: 'Help me please somebody help me now', stability: 0.5 })
     expect(synthesizer.spoken[1]).toMatchObject({ previousText: 'Oh my God' })
   })
 
@@ -154,5 +154,17 @@ describe('directPerformance', () => {
     expect(sample).not.toHaveBeenCalled()
     expect(performance.measured).toBe(false)
     expect(performance.lines.map((line) => line.pieces[0]!.outStartMs)).toEqual([1000, 3000])
+  })
+})
+
+describe('stabilityFor', () => {
+  it('keeps the voice steady for flat lines and free for screams, and moves a re-take the way the review asks', () => {
+    expect(stabilityFor({ pitchRangeSt: 2.4 })).toBe(0.75)
+    expect(stabilityFor({ pitchRangeSt: 7 })).toBe(0.5)
+    expect(stabilityFor({ pitchRangeSt: 9, peakSt: 19.6 })).toBe(0.35)
+    expect(stabilityFor(undefined)).toBe(0.5)
+    expect(stabilityFor({ pitchRangeSt: 2.4 }, { stability: 0.75, direction: 'calmer' })).toBe(0.9)
+    expect(stabilityFor({ pitchRangeSt: 15 }, { stability: 0.35, direction: 'livelier' })).toBe(0.2)
+    expect(stabilityFor({}, { stability: 0.5 })).toBe(0.5)
   })
 })

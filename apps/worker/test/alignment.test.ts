@@ -37,6 +37,25 @@ describe('alignTake', () => {
     expect(aligned.overflowMs).toBe(0)
   })
 
+  it('pauses before a tied word that the take reaches too early even at the slowest tempo', () => {
+    // "bedroom" comes 300 ms into the take but 1000 ms into the original: 0.8 stretches that to 375 ms, and a pause of
+    // at most 500 ms brings it to 125 ms early instead of 625.
+    const quick: TakeTiming = { durationMs: 1500, words: [w('my', 100, 300), w('bedroom', 400, 900)], events: [] }
+    const target: LineTarget = {
+      ...scream,
+      startMs: 7000,
+      endMs: 8600,
+      words: [w('meu', 7000, 7500), w('quarto', 8000, 8600)],
+      anchors: [{ source: 'quarto', target: 'bedroom' }],
+      notBeforeMs: 0,
+      notAfterMs: 9000,
+    }
+    const aligned = alignTake(quick, target)
+    expect(aligned.pieces[1]).toEqual({ fromMs: 100, toMs: 400, outStartMs: 7000, tempo: 0.8 })
+    expect(aligned.pieces[2]).toMatchObject({ fromMs: 400, outStartMs: 7875 })
+    expect(aligned.errors[0]).toEqual({ label: 'bedroom', weight: 'firm', errorMs: -125 })
+  })
+
   it('pins words said right at a cut', () => {
     const knots = knotsFor(take, { ...scream, cutsMs: [14_300] })
     expect(knots.map((k) => [k.label, k.weight])).toEqual([['Oh', 'pin'], ['God,', 'pin'], ['end', 'soft']])
@@ -68,6 +87,11 @@ describe('alignTake', () => {
     // Only 400 ms are free before "Help": the gasp plays at 1.35 and loses its first 360 ms.
     expect(aligned.pieces[0]).toEqual({ fromMs: 360, toMs: 900, outStartMs: 9600, tempo: 1.35 })
     expect(aligned.pieces[1]).toMatchObject({ fromMs: 900, outStartMs: 10_000 })
+    // With room to spare, the whole gasp plays and simply ends on the first word, even though it is longer than the
+    // original's sound: the first word never waits for it.
+    const roomy = alignTake(gasp, { ...target, notBeforeMs: 8000 })
+    expect(roomy.pieces[0]).toEqual({ fromMs: 0, toMs: 900, outStartMs: 9100, tempo: 1 })
+    expect(roomy.pieces[1]).toMatchObject({ fromMs: 900, outStartMs: 10_000 })
   })
 
   it('ends a re-performed laugh where the original laugh ended', () => {

@@ -240,6 +240,8 @@ export interface SpokenLine {
   nextText?: string
   /** Different seeds give different takes of the same line. */
   seed?: number
+  /** From 0 (free, very expressive) to 1 (steady, monotone); the voice's own default when left out. */
+  stability?: number
 }
 
 export interface VoiceSession {

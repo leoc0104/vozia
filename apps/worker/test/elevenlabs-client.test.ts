@@ -69,13 +69,13 @@ describe('ElevenLabsClient', () => {
     const { fetchImpl, requests } = createFetchStub(() => new Response(Buffer.from('mp3 bytes')))
     const client = new ElevenLabsClient({ apiKey: 'key', fetchImpl, baseUrl: 'https://proxy.example/' })
     const dest = path.join(await tempDir(), 'clip.mp3')
-    await client.textToSpeech('v123', '[excited] Olá!', { modelId: 'eleven_v4' }, dest)
+    await client.textToSpeech('v123', '[excited] Olá!', { modelId: 'eleven_v4', stability: 0.75 }, dest)
     expect(await readFile(dest, 'utf8')).toBe('mp3 bytes')
     expect(requests[0]!.url).toBe('https://proxy.example/v1/text-to-speech/v123?output_format=mp3_44100_128')
     expect(requests[0]!.json).toEqual({
       text: '[excited] Olá!',
       model_id: 'eleven_v4',
-      voice_settings: { stability: 0.5, similarity_boost: 0.8 },
+      voice_settings: { stability: 0.75, similarity_boost: 0.8 },
     })
   })
 

@@ -187,6 +187,11 @@ describe('dropEdgeSounds', () => {
     expect(dropEdgeSounds('[gasps] [panicked, sighs] Help me! [screams]', { before: false, after: false })).toBe('[panicked] Help me!')
     expect(dropEdgeSounds('[starts laughing] Oh no [clears throat]', { before: false, after: false })).toBe('Oh no')
     expect(dropEdgeSounds('[laughing] Oh no [deep breath]', { before: false, after: false })).toBe('[laughing] Oh no')
+    // Sounds with adjectives, as the first real run wrote them.
+    expect(dropEdgeSounds('[soft breath] [fast, lively] Oh my God', { before: false, after: false })).toBe('[fast, lively] Oh my God')
+    expect(dropEdgeSounds('[quick gasp] [screaming] Oh my God?! [sobbing]', { before: false, after: false })).toBe('[screaming] Oh my God?! [sobbing]')
+    expect(dropEdgeSounds('[flat] No... [deep grunt]', { before: false, after: false })).toBe('[flat] No...')
+    expect(dropEdgeSounds('[high-pitched] Help!', { before: false, after: false })).toBe('[high-pitched] Help!')
     expect(dropEdgeSounds('[gasps] Help me! [screams]', { before: true, after: true })).toBe('[gasps] Help me! [screams]')
     expect(dropEdgeSounds('Help [gasps] me!', { before: false, after: false })).toBe('Help [gasps] me!')
   })

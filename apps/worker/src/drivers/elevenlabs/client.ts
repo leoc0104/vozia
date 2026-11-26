@@ -139,7 +139,7 @@ export class ElevenLabsClient {
   async textToSpeech(
     voiceId: string,
     text: string,
-    opts: { modelId: string; languageCode?: string; previousText?: string; nextText?: string; seed?: number },
+    opts: { modelId: string; languageCode?: string; previousText?: string; nextText?: string; seed?: number; stability?: number },
     destPath: string,
     signal?: AbortSignal,
   ): Promise<void> {
@@ -152,7 +152,8 @@ export class ElevenLabsClient {
           text,
           // Always explicit: the endpoint otherwise falls back to an older model that reads directions aloud.
           model_id: opts.modelId,
-          voice_settings: { stability: 0.5, similarity_boost: 0.8 },
+          // Lower stability lets the voice move more: steady for deadpan lines, free for screams.
+          voice_settings: { stability: opts.stability ?? 0.5, similarity_boost: 0.8 },
           ...(opts.languageCode ? { language_code: opts.languageCode } : {}),
           // The lines around this one, so the voice carries one performance across separate requests.
           ...(opts.previousText ? { previous_text: opts.previousText } : {}),
