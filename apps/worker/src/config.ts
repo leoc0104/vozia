@@ -93,7 +93,7 @@ export function loadConfig(env: NodeJS.ProcessEnv): WorkerConfig {
     fakeStorageDir: blank(env.VOZIA_FAKE_STORAGE_DIR) ?? '',
     elevenlabsApiKey: blank(env.ELEVENLABS_API_KEY),
     anthropicApiKey: blank(env.ANTHROPIC_API_KEY),
-    translationModel: blank(env.VOZIA_TRANSLATION_MODEL) ?? 'claude-opus-5',
+    translationModel: blank(env.VOZIA_TRANSLATION_MODEL) ?? 'claude-opus-5-5',
     speechModel: blank(env.VOZIA_SPEECH_MODEL),
     replicateApiToken: blank(env.REPLICATE_API_TOKEN),
     replicateDemucsVersion: blank(env.REPLICATE_DEMUCS_VERSION),

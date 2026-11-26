@@ -14,11 +14,16 @@ import type {
   SpeechSynthesizer,
   Transcriber,
   Translator,
+  VideoBrief,
   VideoIngestor,
 } from './contracts.js'
 import { PipelineError } from './errors.js'
 import { attachSounds, lineNotes, performedTiming, voiceAnalysisRequest, wordlessVoice } from './performance.js'
 import { speechWindows } from './speech-windows.js'
+import { MAX_FRAMES, frameTimes } from './watching.js'
+
+/** How many lines the translator watches together, each group with up to MAX_FRAMES frames. */
+const LINES_PER_LOOK = 40
 
 /** The most the new voice is raised or lowered to match the original, so a bad measurement cannot ruin the mix. */
 export const MAX_VOICE_GAIN_DB = 10
@@ -76,19 +81,23 @@ export class StagedPipeline implements DubbingPipeline {
     const analysis = await this.d.media.analyzeVoice(vocalsPath, voiceAnalysisRequest(transcript.segments, tagged), ctx)
     const sounds = attachSounds(transcript.segments, [...tagged, ...wordlessVoice(analysis)])
     const cuts = await this.d.media.sceneCuts(ingest.videoPath, ctx)
+    const totalDurationMs = Math.round(ingest.durationSeconds * 1000)
+    const languages = { sourceLanguage: transcript.language, targetLanguage: dub.target_language }
+    // The translator watches the video first, so it keeps jokes tied to the picture and finds captions to translate.
+    let brief: VideoBrief | null = null
+    if (this.d.translator.watch) {
+      const looks = MAX_FRAMES * Math.ceil(transcript.segments.length / LINES_PER_LOOK)
+      const frames = await this.d.media.frames(ingest.videoPath, frameTimes(transcript.segments, cuts, totalDurationMs, looks), ctx)
+      brief = await this.d.translator.watch(transcript.segments, { ...languages, frames, cutsMs: cuts, durationMs: totalDurationMs }, ctx)
+    }
     const translated = await this.d.translator.translate(
       transcript.segments,
-      {
-        sourceLanguage: transcript.language,
-        targetLanguage: dub.target_language,
-        notes: lineNotes(transcript.segments, sounds, analysis, cuts),
-      },
+      { ...languages, notes: lineNotes(transcript.segments, sounds, analysis, cuts), brief },
       ctx,
     )
     await this.d.repo.replaceSegments(dub.id, translated)
 
     await ctx.setStage('synthesizing')
-    const totalDurationMs = Math.round(ingest.durationSeconds * 1000)
     // A voice that performs directions also laughs where the speaker laughed, so those lines span their sounds.
     const performed = this.d.synthesizer.performsDirections ? performedTiming(translated, sounds) : translated
     const { dubbedVocalsPath } = await this.d.synthesizer.synthesize(

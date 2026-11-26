@@ -3,14 +3,18 @@ import type { VoiceAnalysis, VoiceMeasure } from '../src/pipeline/contracts.js'
 import {
   attachSounds,
   describeMelody,
+  dropEdgeSounds,
   hasDirections,
   lineNotes,
+  normalizeWord,
   paceByLine,
   performedTiming,
   relativeDelivery,
   stripDirections,
+  validAnchors,
   voiceAnalysisRequest,
   wordlessVoice,
+  wordsOf,
 } from '../src/pipeline/performance.js'
 
 const line = (idx: number, startMs: number, endMs: number, text = 'hello world', speaker: string | null = null) => ({
@@ -153,6 +157,38 @@ describe('performance scripts', () => {
     expect(hasDirections('Oh my God… []')).toBe(false)
     expect(stripDirections('[panicked] Oh my God… [laughs]')).toBe('Oh my God…')
     expect(stripDirections('I [whispering, scared] told you')).toBe('I told you')
+  })
+})
+
+describe('words across languages', () => {
+  it('matches words without case, accents or punctuation', () => {
+    expect(normalizeWord("Kai'Sa.")).toBe('kaisa')
+    expect(normalizeWord('Ação!')).toBe('acao')
+    expect(wordsOf('Meu Deus, gente —')).toEqual(['meu', 'deus', 'gente'])
+  })
+
+  it('keeps anchors whose words are in both lines, once per word, at most six', () => {
+    const anchors = validAnchors(
+      [
+        { source: 'Deus,', target: 'God!' },
+        { source: 'tocou', target: 'touched' },
+        { source: 'gente', target: 'God' }, // God is anchored already
+        { source: 'nada', target: 'me' }, // not in the original
+      ],
+      'Meu Deus, a barata me tocou',
+      'Oh my God! The cockroach touched me',
+    )
+    expect(anchors).toEqual([{ source: 'Deus,', target: 'God!' }, { source: 'tocou', target: 'touched' }])
+  })
+})
+
+describe('dropEdgeSounds', () => {
+  it('takes sounds off the edges, keeps directions that shape the words, and keeps edges with a real sound', () => {
+    expect(dropEdgeSounds('[gasps] [panicked, sighs] Help me! [screams]', { before: false, after: false })).toBe('[panicked] Help me!')
+    expect(dropEdgeSounds('[starts laughing] Oh no [clears throat]', { before: false, after: false })).toBe('Oh no')
+    expect(dropEdgeSounds('[laughing] Oh no [deep breath]', { before: false, after: false })).toBe('[laughing] Oh no')
+    expect(dropEdgeSounds('[gasps] Help me! [screams]', { before: true, after: true })).toBe('[gasps] Help me! [screams]')
+    expect(dropEdgeSounds('Help [gasps] me!', { before: false, after: false })).toBe('Help [gasps] me!')
   })
 })
 

@@ -94,7 +94,7 @@ In `NODE_ENV=production` the defaults switch to the real implementations; otherw
 | `VOZIA_INGESTOR_DRIVER` | `fake` · `ytdlp` | `yt-dlp` + ffmpeg binaries |
 | `VOZIA_SEPARATOR_DRIVER` | `fake` · `ffmpeg-duck` · `demucs` · `replicate-demucs` | ffmpeg / the `demucs` CLI, built into both worker images (`VOZIA_DEMUCS_PATH`) / `REPLICATE_API_TOKEN` + `REPLICATE_DEMUCS_VERSION` |
 | `VOZIA_TRANSCRIBER_DRIVER` | `fake` · `elevenlabs` | `ELEVENLABS_API_KEY` |
-| `VOZIA_TRANSLATOR_DRIVER` | `fake` · `anthropic` | `ANTHROPIC_API_KEY` (`VOZIA_TRANSLATION_MODEL`, default `claude-opus-5`) |
+| `VOZIA_TRANSLATOR_DRIVER` | `fake` · `anthropic` | `ANTHROPIC_API_KEY` (`VOZIA_TRANSLATION_MODEL`, default `claude-opus-5-5`) |
 | `VOZIA_SYNTHESIZER_DRIVER` | `fake` · `elevenlabs` | `ELEVENLABS_API_KEY` (`VOZIA_SPEECH_MODEL`, default `eleven_v4`) |
 | `VOZIA_MEDIA_DRIVER` | `fake` · `ffmpeg` | ffmpeg + ffprobe binaries |
 | `VOZIA_STORAGE_DRIVER` | `fake` · `supabase` | `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` |

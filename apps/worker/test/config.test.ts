@@ -8,7 +8,7 @@ describe('loadConfig', () => {
     expect(config.pipeline).toBe('staged')
     expect(Object.values(config.drivers).every((d) => d === 'fake')).toBe(true)
     expect(config.concurrency).toBe(1)
-    expect(config.translationModel).toBe('claude-opus-5')
+    expect(config.translationModel).toBe('claude-opus-5-5')
     expect(missingSettings(config)).toEqual(['DATABASE_URL'])
   })
 

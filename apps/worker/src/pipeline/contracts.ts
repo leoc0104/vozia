@@ -27,6 +27,41 @@ export interface TranslatedSegment extends TranscriptSegment {
   performanceText?: string
   /** The ids of the line's sounds (see LineNotes) that the performance re-performs in the new voice. */
   performedSounds?: number[]
+  /** Words of the translation tied to the word of the original said at the same moment, so the dub can land them there. */
+  anchors?: Anchor[]
+}
+
+/** `target` (a word of the translation) belongs at the moment `source` (a word of the original line) was said. */
+export interface Anchor {
+  source: string
+  target: string
+}
+
+/** Text written in the picture, translated, and when it is visible. */
+export interface Caption {
+  startMs: number
+  endMs: number
+  text: string
+  translation: string
+}
+
+/** What the translator learned from watching the video before translating it. */
+export interface VideoBrief {
+  /** What the video is, who speaks, the tone and any running joke. */
+  summary: string
+  /** Names, slang and jargon to translate consistently. */
+  glossary: { term: string; translation: string }[]
+  /** What is on screen while each line is said. */
+  onScreen: Map<number, string>
+  captions: Caption[]
+}
+
+/** A line sent back to the translator because its take did not fit or did not sound like the original. */
+export interface RevisionRequest {
+  segment: TranslatedSegment
+  notes?: LineNotes
+  /** What went wrong, measured from the take, in plain words. */
+  feedback: string[]
 }
 
 /** A non-speech sound the transcriber heard, labeled in the language of the video, like "risos" or "applause". */
@@ -81,6 +116,8 @@ export interface LineNotes {
   sounds?: LineSound[]
   /** Seconds from the start of the line where the picture cuts: words spoken there are tied to the picture. */
   cuts?: number[]
+  /** What is on screen while the line is said, from watching the video. */
+  onScreen?: string
 }
 
 /** Absolute measures of a stretch of voice: dBFS and semitones above 100 Hz (see scripts/voice_analysis.py). */
@@ -166,12 +203,23 @@ export interface Transcriber {
   ): Promise<{ language: string; segments: TranscriptSegment[]; events?: SoundEvent[] }>
 }
 
+export interface TranslateOptions {
+  sourceLanguage: string
+  targetLanguage: string
+  notes?: ReadonlyMap<number, LineNotes>
+  brief?: VideoBrief | null
+}
+
 export interface Translator {
-  translate(
+  /** Watches the video (frames and the whole transcript) before translating it; null when it cannot see. */
+  watch?(
     segments: TranscriptSegment[],
-    opts: { sourceLanguage: string; targetLanguage: string; notes?: ReadonlyMap<number, LineNotes> },
+    opts: { sourceLanguage: string; targetLanguage: string; frames: Frame[]; cutsMs: number[]; durationMs: number },
     ctx: StageContext,
-  ): Promise<TranslatedSegment[]>
+  ): Promise<VideoBrief | null>
+  translate(segments: TranscriptSegment[], opts: TranslateOptions, ctx: StageContext): Promise<TranslatedSegment[]>
+  /** Rewrites lines whose takes did not fit their time or did not sound like the original, from measured feedback. */
+  revise?(requests: RevisionRequest[], opts: TranslateOptions, ctx: StageContext): Promise<TranslatedSegment[]>
 }
 
 export interface SynthesisRequest {

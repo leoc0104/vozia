@@ -1,4 +1,5 @@
 import type {
+  Anchor,
   Delivery,
   LineNotes,
   LineSound,
@@ -74,6 +75,71 @@ export function paceByLine(lines: readonly Line[]): Map<number, number> {
 }
 
 const DIRECTION = /\[[^\]]+\]/g
+
+/**
+ * A direction that makes a sound of its own, like [gasps] or [clears throat], rather than shaping the words, like
+ * [panicked] or [laughing]. Directions are always written in English, so this list works for every language.
+ */
+const SOUND_DIRECTION =
+  /^(?:(?:starts?|bursts?(?: out)?) (?:laughing|crying|sobbing|screaming)|(?:laughs|chuckles|giggles|snickers|cackles|gasps|sighs|screams|shrieks|sobs|cries|whimpers|groans|moans|grunts|coughs|sneezes|sniffs|snorts|breathes|inhales|exhales|pants|yawns|gulps|swallows|wheezes|hums|squeals)\b.*|clears? (?:(?:his|her|their|my) )?throat|(?:a |deep |sharp |short )*breath)$/i
+
+function trimEdgeSounds(performance: string, edge: 'start' | 'end'): string {
+  const tokens = performance.split(/(\[[^\]]+\])/)
+  const order = edge === 'start' ? [...tokens.keys()] : [...tokens.keys()].reverse()
+  for (const i of order) {
+    const token = tokens[i]!
+    if (/^\[[^\]]+\]$/.test(token)) {
+      const parts = token
+        .slice(1, -1)
+        .split(',')
+        .map((part) => part.trim())
+        .filter((part) => part !== '' && !SOUND_DIRECTION.test(part))
+      tokens[i] = parts.length > 0 ? `[${parts.join(', ')}]` : ''
+    } else if (/[\p{L}\p{N}]/u.test(token)) break
+  }
+  return tokens.join('').replace(/\s{2,}/g, ' ').trim()
+}
+
+/**
+ * Takes sound directions off the start and the end of a performance unless the original has a sound there: a gasp
+ * before the first word would make it land late against the picture, and a sound the original does not have would
+ * play over it. Directions that shape the words stay.
+ */
+export function dropEdgeSounds(performance: string, keep: { before: boolean; after: boolean }): string {
+  let text = performance
+  if (!keep.before) text = trimEdgeSounds(text, 'start')
+  if (!keep.after) text = trimEdgeSounds(text, 'end')
+  return text
+}
+
+/** A word reduced to its letters and digits, without accents or case, to match words across transcripts. */
+export function normalizeWord(word: string): string {
+  return word
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^\p{L}\p{N}]/gu, '')
+}
+
+/** The words of a text, normalized. */
+export function wordsOf(text: string): string[] {
+  return text.split(/\s+/).map(normalizeWord).filter((word) => word !== '')
+}
+
+/** Anchors whose words really are in the original line and in the translation, at most six. */
+export function validAnchors(anchors: readonly Anchor[], sourceText: string, targetText: string): Anchor[] {
+  const source = new Set(wordsOf(sourceText))
+  const target = new Set(wordsOf(targetText))
+  const kept: Anchor[] = []
+  for (const anchor of anchors) {
+    const s = wordsOf(anchor.source)[0]
+    const t = wordsOf(anchor.target)[0]
+    if (!s || !t || !source.has(s) || !target.has(t) || kept.some((k) => wordsOf(k.target)[0] === t)) continue
+    kept.push({ source: anchor.source.trim(), target: anchor.target.trim() })
+    if (kept.length === 6) break
+  }
+  return kept
+}
 
 /** Whether a performance script directs the voice anywhere, like "[laughs]" or "[whispering]". */
 export function hasDirections(performance: string): boolean {
