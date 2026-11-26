@@ -1,12 +1,13 @@
 import { useQuery } from '@tanstack/react-query'
 import { isTerminal } from '@vozia/shared'
-import { getDub, getVideo, listSegments, listVideos, signedUrl, signedUrls } from './api'
+import { getDub, getVideo, listRetakes, listSegments, listVideos, signedUrl, signedUrls } from './api'
 
 export const qk = {
   videos: () => ['videos'] as const,
   video: (id: string) => ['video', id] as const,
   dub: (id: string) => ['dub', id] as const,
   segments: (dubId: string) => ['segments', dubId] as const,
+  retakes: (dubId: string) => ['retakes', dubId] as const,
   signedUrl: (bucket: string, path: string) => ['signed-url', bucket, path] as const,
   signedUrls: (bucket: string, paths: string[]) => ['signed-urls', bucket, ...paths] as const,
 }
@@ -32,6 +33,16 @@ export function useDub(id: string) {
 
 export function useSegments(dubId: string, enabled = true) {
   return useQuery({ queryKey: qk.segments(dubId), queryFn: () => listSegments(dubId), enabled })
+}
+
+/** A dub's re-takes, checked every few seconds while one is waiting or running. */
+export function useRetakes(dubId: string, enabled = true) {
+  return useQuery({
+    queryKey: qk.retakes(dubId),
+    queryFn: () => listRetakes(dubId),
+    enabled,
+    refetchInterval: (query) => (query.state.data?.some((r) => r.status === 'queued' || r.status === 'running') ? 3000 : false),
+  })
 }
 
 export function useSignedUrl(bucket: string, path: string | null | undefined, download?: string) {

@@ -71,6 +71,18 @@ describe('TranscriptTable', () => {
     expect(onSeek).toHaveBeenCalledWith(61_000)
   })
 
+  it('offers to re-take each line, and labels the one being re-taken while no other can be', async () => {
+    const onRetake = vi.fn()
+    const { rerender } = render(<TranscriptTable segments={segments.slice(0, 1)} sourceLabel="English" targetLabel="Portuguese" onRetake={onRetake} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Re-take the line at 0:00' }))
+    expect(onRetake).toHaveBeenCalledWith(segments[0])
+    rerender(<TranscriptTable segments={segments.slice(0, 1)} sourceLabel="English" targetLabel="Portuguese" onRetake={onRetake} retakingIdx={0} />)
+    expect(screen.getByText('Re-taking')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Re-take the line/ })).not.toBeInTheDocument()
+    rerender(<TranscriptTable segments={segments.slice(0, 1)} sourceLabel="English" targetLabel="Portuguese" onRetake={onRetake} retakingIdx={5} />)
+    expect(screen.getByRole('button', { name: 'Re-take the line at 0:00' })).toBeDisabled()
+  })
+
   it('labels lines that were re-recorded, reworded or still land off the picture, and shows the directions on hover', () => {
     const performed = (performance: object): DubSegmentRow => ({ ...segments[0]!, performance: { spoken: '[panicked] Olá.', notes: [], sounds: [], ...performance } as never })
     const { rerender } = render(

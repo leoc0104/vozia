@@ -18,11 +18,11 @@ with one dub per language and a balance of dubbing minutes.
 Browser (React SPA) ──supabase-js──► Supabase: Auth │ Postgres (RLS) │ Storage (TUS) │ Realtime
         │ insert videos + dubs (status 'queued')
         ▼
-Postgres trigger ──► pgmq.send('dub_jobs', {dub_id})
+Postgres trigger ──► pgmq.send('dub_jobs', {dub_id})        request_retake() ──► {dub_id, retake_id}
         │
         ▼
-apps/worker (Node) ── pgmq.read + heartbeat ──► DubbingPipeline.run(dub)
-        ├─ staged:     Ingest → Separate → Transcribe → Translate → Synthesize → Mux
+apps/worker (Node) ── pgmq.read + heartbeat ──► DubbingPipeline.run(dub) / .retake(dub, line)
+        ├─ staged:     Ingest → Separate → Transcribe → Watch → Translate → Direct → Match voice → Mux
         └─ elevenlabs: Ingest → ElevenLabs Dubbing API (create → poll → download video + SRTs)
         │ writes status/progress to dubs (Realtime → UI), uploads outputs to Storage
         ▼
@@ -95,7 +95,7 @@ In `NODE_ENV=production` the defaults switch to the real implementations; otherw
 | `VOZIA_SEPARATOR_DRIVER` | `fake` · `ffmpeg-duck` · `demucs` · `replicate-demucs` | ffmpeg / the `demucs` CLI, built into both worker images (`VOZIA_DEMUCS_PATH`) / `REPLICATE_API_TOKEN` + `REPLICATE_DEMUCS_VERSION` |
 | `VOZIA_TRANSCRIBER_DRIVER` | `fake` · `elevenlabs` | `ELEVENLABS_API_KEY` |
 | `VOZIA_TRANSLATOR_DRIVER` | `fake` · `anthropic` | `ANTHROPIC_API_KEY` (`VOZIA_TRANSLATION_MODEL`, default `claude-opus-5-5`) |
-| `VOZIA_SYNTHESIZER_DRIVER` | `fake` · `elevenlabs` | `ELEVENLABS_API_KEY` (`VOZIA_SPEECH_MODEL`, default `eleven_v4`) |
+| `VOZIA_SYNTHESIZER_DRIVER` | `fake` · `elevenlabs` | `ELEVENLABS_API_KEY` (`VOZIA_SPEECH_MODEL`, default `eleven_v4`; `VOZIA_RETAKE_ROUNDS`, default `1`, `0` turns re-takes off) |
 | `VOZIA_MEDIA_DRIVER` | `fake` · `ffmpeg` | ffmpeg + ffprobe binaries |
 | `VOZIA_STORAGE_DRIVER` | `fake` · `supabase` | `SUPABASE_URL` + `SUPABASE_SERVICE_ROLE_KEY` |
 
@@ -149,30 +149,45 @@ enqueue trigger and the storage policies. CI (`.github/workflows/ci.yml`) runs b
 ## Known limitations
 
 - The real provider drivers (ElevenLabs Scribe/IVC/TTS/Dubbing, Anthropic, Replicate, yt-dlp) follow the
-  documented request shapes and are tested against stubs. Scribe, voice cloning, TTS with Eleven v4 and the
-  Anthropic translator have also run against the live APIs; the others have not yet.
+  documented request shapes and are tested against stubs. The whole `staged` pipeline has also run against the live
+  APIs (Scribe, voice cloning, Eleven v4 with neighbouring lines, seeds and stability, and Claude watching frames,
+  translating and revising); the ElevenLabs Dubbing pipeline, Replicate and live yt-dlp have not yet.
 - `ffmpeg-duck` keeps the original mix under the dub at −14 dB (voices remain faintly audible). `demucs`
   (the production default) separates the voice locally and for free, so the dub keeps the original music and
   effects and replaces only the speech. It runs on the CPU at roughly twice real time and adds about 1.2 GB to the
-  worker image. Between spoken lines (from the transcript's timing, padded and merged) the dub plays the original
-  audio untouched, so sounds there survive even when the separator files them under the voice (the speaker's own
-  laughs and sighs right next to a line are re-performed by the new voice instead: see Performance).
-  During speech the separated background plays, plus a steady noise floor recreated from the original
-  (`apps/worker/scripts/room_tone.py`, numpy from the image's Demucs virtualenv, `VOZIA_PYTHON_PATH`), so steady room
-  noise does not vanish under the new voice. Bursty or voice-like sounds the separator takes for voice (singing, some
-  noises) still drop out there.
-- Pacing: the translator gets each line's length in seconds and aims for a translation of the same length; the
-  timeline slows a shorter clip toward its line's length (down to 0.85×) and speeds up a longer one (up to 1.35×);
-  lines are split at pauses of 0.45 s, so each phrase lands where the original one did.
-- Performance: the transcriber also tags sounds such as laughter, sighs or screams, labeled in the video's language.
-  Each line's delivery is measured from the separated voice (`apps/worker/scripts/delivery.py`: loudness, pitch and
-  pitch movement against the speaker's usual, plus speed), and sounds by the same speaker within 1 s of a line are tied
-  to it. The translator gets all of this and returns, next to the plain subtitle text, a performance script with
-  ElevenLabs audio tags (`[panicked] Oh my God… [laughs]`). It decides which sounds came from the speaker's voice, in
-  any language, and performs them. Eleven v4 speaks the script in the cloned voice; the timing and speech windows of
-  a line extend over the laugh it performs, so the original laugh gives way to the new one, and every other sound
-  stays original. The new voice is then brought to the original voice's loudness (EBU R128, at most ±10 dB). Older
-  speech models get the plain words. Tags reproduce the kind of delivery, not the exact melody of the original.
+  worker image.
+- Listening (`apps/worker/scripts/voice_analysis.py`, numpy from the image's Demucs virtualenv, `VOZIA_PYTHON_PATH`):
+  each line's loudness, pitch, pitch movement, highest note and ending are measured against the speaker's usual
+  line, and described to the translator in words ("very high voice, rises at the end", "flat, almost monotone").
+  Voice without words that the transcriber did not tag (crying, a scream) is found the same way. Scene cuts come
+  from ffmpeg.
+- Watching and translating: Claude first looks at frames of the video (at every cut, every two seconds and in each
+  line) with the whole transcript, and writes a short brief, what is on screen during each line, and the captions in
+  the picture worth translating. The translation keeps jokes tied to the picture, returns a plain line for the
+  subtitles and a directed one for the voice (ElevenLabs audio tags), and anchors words of the translation to the
+  words of the original said at the same moment. Sounds are re-performed only where the original has them; a gasp
+  before the first word is taken out unless the original gasps there.
+- Directing (`apps/worker/src/pipeline/director.ts`): the voice is cloned from the speaker's calmest, most typical
+  lines, and each line is spoken with its neighbours as context and a stability that keeps deadpan lines flat and
+  lets screams go. Every take is heard back (its words and sounds by speech-to-text, its melody by the voice
+  analysis) and reviewed against the original: too long or too short, words landing off the picture, too flat or
+  over-acted, a laugh much shorter than the original's. Takes that miss go back to Claude with that feedback and are
+  recorded again (`VOZIA_RETAKE_ROUNDS`, default one round, which adds speech for those lines only); the better take
+  wins. Each take is then laid word by word: its first word on the original's first word, anchored words on theirs
+  (pinned hardest at cuts), stretches between them played at 0.8–1.35× with short pauses when a take runs early.
+- Mixing: the new voice is matched to the original recording (`scripts/voice_match.py`: tone, frequency range and,
+  when the original really rings, its room) and moved to the speaker's pitch when the clone speaks higher or lower on
+  calm lines (rubberband, formants kept, at most 3 semitones). The original voice is muted only over its words and
+  over the sounds the new voice re-performs while it performs them, with edges moved to quiet moments; elsewhere the
+  original plays untouched. Under the new voice the separated background plays with the voice track's own noise
+  carried in from its pauses (`scripts/noise_fill.py`, falling back to a steady room tone, `scripts/room_tone.py`).
+  The voice is brought to the speaker's loudness (EBU R128, at most ±10 dB), and translated captions are drawn at the
+  top of the picture while the original text is on screen (DejaVu Sans; other scripts are left out for now).
+- The dub page shows how close each dub came: lines landing on the picture, re-takes, the voice match and captions,
+  with per-line labels in the transcript. Any line of a finished `staged` dub can be re-taken in new words: the
+  worker separates the source again, keeps every other line exactly as laid (`outputs/<owner>/<dub>/work/`), records
+  that line in the same voice and remixes the dub. Directions reproduce the kind of delivery, not the exact melody of
+  the original.
 - YouTube ingestion depends on yt-dlp; YouTube's bot detection may require cookies or a proxy at scale.
 - The `elevenlabs` pipeline always clones the original voice; stock voices only apply to `staged`.
 - The translator uses `messages.parse` with structured output and does not yet enable server-side

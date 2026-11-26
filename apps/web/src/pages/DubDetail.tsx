@@ -1,18 +1,19 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { Download, FileText, RotateCcw, Trash2 } from 'lucide-react'
-import { BUCKETS } from '@vozia/db'
+import { BUCKETS, type DubSegmentRow } from '@vozia/db'
 import { readDubQuality, type DubStatus } from '@vozia/shared'
 import { ConfirmDialog } from '../components/ConfirmDialog'
 import { DubQualityPanel } from '../components/DubQualityPanel'
+import { RetakeDialog } from '../components/RetakeDialog'
 import { DubPlayer, type VoiceTrack } from '../components/DubPlayer'
 import { LanguageName } from '../components/LanguageName'
 import { StageStepper } from '../components/StageStepper'
 import { TranscriptTable } from '../components/TranscriptTable'
 import { Badge, Button, Callout, Card, Spinner } from '../components/ui'
-import { deleteDub, retryDub } from '../lib/api'
-import { qk, useDub, useSegments, useSignedUrl, useVideo } from '../lib/queries'
+import { deleteDub, requestRetake, retryDub } from '../lib/api'
+import { qk, useDub, useRetakes, useSegments, useSignedUrl, useVideo } from '../lib/queries'
 import { badgeVariantForStatus, statusLabel } from '../lib/status-ui'
 
 export function DubDetailPage() {
@@ -24,6 +25,32 @@ export function DubDetailPage() {
   const segments = useSegments(dubId, dub.data?.pipeline !== 'elevenlabs' && dub.data?.status !== 'queued')
   const [busy, setBusy] = useState<'retry' | 'delete' | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+
+  // Re-taking one line of a finished dub: the line asked about, and the re-takes waiting, running or done.
+  const canRetake = dub.data?.status === 'completed' && dub.data.pipeline === 'staged'
+  const retakes = useRetakes(dubId, canRetake)
+  const [retakeLine, setRetakeLine] = useState<DubSegmentRow | null>(null)
+  const pendingRetake = retakes.data?.find((r) => r.status === 'queued' || r.status === 'running') ?? null
+  const lastRetake = retakes.data?.[0] ?? null
+  // When a re-take this page saw waiting finishes, the dub's files and lines have changed: fetch them again.
+  const waitingRetakes = useRef(new Set<string>())
+  useEffect(() => {
+    for (const retake of retakes.data ?? []) {
+      if (retake.status === 'queued' || retake.status === 'running') waitingRetakes.current.add(retake.id)
+      else if (waitingRetakes.current.delete(retake.id)) {
+        void queryClient.invalidateQueries({ queryKey: qk.dub(dubId) })
+        void queryClient.invalidateQueries({ queryKey: qk.segments(dubId) })
+        void queryClient.invalidateQueries({ queryKey: ['signed-url'] })
+        void queryClient.invalidateQueries({ queryKey: ['signed-urls'] })
+      }
+    }
+  }, [retakes.data, queryClient, dubId])
+
+  async function onRetake(text: string) {
+    if (!retakeLine) return
+    await requestRetake(dubId, retakeLine.idx, text)
+    await queryClient.invalidateQueries({ queryKey: qk.retakes(dubId) })
+  }
 
   const [track, setTrack] = useState<VoiceTrack>('dub')
   const [currentMs, setCurrentMs] = useState<number | null>(null)
@@ -200,6 +227,15 @@ export function DubDetailPage() {
       {segments.data && segments.data.length > 0 ? (
         <section>
           <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-50">Transcript</h2>
+          {pendingRetake ? (
+            <Callout variant="neutral" title="Re-taking a line." className="mt-3">
+              The new voice is recording it now. The dub updates here when it is ready; the one you have keeps playing.
+            </Callout>
+          ) : lastRetake?.status === 'failed' ? (
+            <Callout variant="error" title="That line could not be re-taken." className="mt-3">
+              {lastRetake.error_message ?? 'Something went wrong.'}
+            </Callout>
+          ) : null}
           <div className="mt-3">
             <TranscriptTable
               segments={segments.data}
@@ -210,8 +246,18 @@ export function DubDetailPage() {
               currentMs={d.status === 'completed' ? currentMs : null}
               markColumn={track === 'original' && original.data ? 'source' : 'target'}
               onSeek={d.status === 'completed' && playback.data ? playFrom : undefined}
+              onRetake={canRetake ? setRetakeLine : undefined}
+              retakingIdx={pendingRetake?.idx ?? null}
             />
           </div>
+          <RetakeDialog
+            key={retakeLine?.id ?? 'closed'}
+            segment={retakeLine}
+            sourceLang={d.detected_language}
+            targetLang={d.target_language}
+            onClose={() => setRetakeLine(null)}
+            onSubmit={onRetake}
+          />
         </section>
       ) : null}
     </div>

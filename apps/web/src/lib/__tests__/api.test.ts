@@ -8,7 +8,19 @@ vi.mock('../supabase', () => ({
   },
 }))
 
-import { InsufficientMinutesError, createDub, createVideo, deleteDub, deleteVideo, listVideos, retryDub, signedUrls, updateProfile } from '../api'
+import {
+  InsufficientMinutesError,
+  createDub,
+  createVideo,
+  deleteDub,
+  deleteVideo,
+  listRetakes,
+  listVideos,
+  requestRetake,
+  retryDub,
+  signedUrls,
+  updateProfile,
+} from '../api'
 
 const session = fakeSession()
 
@@ -45,6 +57,23 @@ describe('api', () => {
     expect(fake.current!.rpc).toHaveBeenCalledWith('retry_dub', { p_dub_id: 'd1' })
     fake.current!.rpc.mockResolvedValueOnce({ data: null, error: { message: 'dub_not_retryable' } } as never)
     await expect(retryDub('d1')).rejects.toThrow('dub_not_retryable')
+  })
+
+  it('asks for a re-take through the rpc, and explains its refusals in plain words', async () => {
+    fake.current!.rpc.mockResolvedValueOnce({ data: 'r1', error: null } as never)
+    expect(await requestRetake('d1', 6, 'Oh no!')).toBe('r1')
+    expect(fake.current!.rpc).toHaveBeenCalledWith('request_retake', { p_dub_id: 'd1', p_idx: 6, p_text: 'Oh no!' })
+    fake.current!.rpc.mockResolvedValueOnce({ data: null, error: { message: 'retake_in_progress', code: 'P0001' } } as never)
+    await expect(requestRetake('d1', 6, 'Oh no!')).rejects.toMatchObject({
+      message: 'Another line is being re-taken. Wait for it to finish, then try again.',
+      code: 'retake_in_progress',
+    })
+  })
+
+  it("lists a dub's latest re-takes, newest first", async () => {
+    fake.current!.setResponder(() => ({ data: [{ id: 'r1', status: 'running' }], error: null }))
+    expect((await listRetakes('d1'))[0]!.id).toBe('r1')
+    expect(fake.current!.calls[0]).toMatchObject({ table: 'dub_retakes', op: 'select' })
   })
 
   it('deletes output objects before the dub row, and everything for a video', async () => {

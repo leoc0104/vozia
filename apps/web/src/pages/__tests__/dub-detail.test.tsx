@@ -14,6 +14,8 @@ const { fake, api } = vi.hoisted(() => ({
     ]),
     retryDub: vi.fn(async () => undefined),
     deleteDub: vi.fn(async () => undefined),
+    listRetakes: vi.fn(async (): Promise<unknown[]> => []),
+    requestRetake: vi.fn(async () => 'r1'),
     signedUrl: vi.fn(async (_bucket: string, path: string, opts?: { download?: string }) => `https://signed.test/${path}${opts?.download ? `?download=${opts.download}` : ''}`),
   },
 }))
@@ -61,6 +63,22 @@ describe('DubDetailPage', () => {
     await userEvent.click(original)
     expect(document.querySelector('video')).toHaveAttribute('src', 'https://signed.test/s/v1/source.mp4')
     expect(await screen.findByRole('button', { name: 'Play from 0:00' })).toBeInTheDocument()
+  })
+
+  it('re-takes a line of a finished dub in new words, and says so while it runs', async () => {
+    api.getDub.mockResolvedValue({ ...baseDub, status: 'completed', progress: 100, output_path: 'o/d1/dubbed.mp4' })
+    await renderApp('/app/dubs/d1', fake)
+    await userEvent.click(await screen.findByRole('button', { name: 'Re-take the line at 0:00' }, { timeout: 5000 }))
+    const dialog = await screen.findByRole('dialog', { name: 'Re-take this line' })
+    const box = within(dialog).getByLabelText('New words')
+    await userEvent.clear(box)
+    await userEvent.type(box, 'Oi, gente!')
+    api.listRetakes.mockResolvedValue([{ id: 'r1', dub_id: 'd1', idx: 0, status: 'running', error_message: null }])
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Re-take line' }))
+    await waitFor(() => expect(api.requestRetake).toHaveBeenCalledWith('d1', 0, 'Oi, gente!'))
+    expect(await screen.findByText('Re-taking a line.')).toBeInTheDocument()
+    expect(screen.getByText('Re-taking')).toBeInTheDocument()
+    api.listRetakes.mockResolvedValue([])
   })
 
   it('asks before deleting and deletes on confirm', async () => {

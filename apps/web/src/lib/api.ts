@@ -1,4 +1,4 @@
-import { BUCKETS, type DubRow, type DubSegmentRow, type VideoRow } from '@vozia/db'
+import { BUCKETS, type DubRetakeRow, type DubRow, type DubSegmentRow, type VideoRow } from '@vozia/db'
 import { isInsufficientMinutesError, type CreateDubInput, type SourceType } from '@vozia/shared'
 import { supabase } from './supabase'
 
@@ -111,6 +111,30 @@ export async function createDub(input: CreateDubInput): Promise<DubRow> {
 export async function retryDub(dubId: string): Promise<void> {
   const { error } = await supabase.rpc('retry_dub', { p_dub_id: dubId })
   if (error) throw new ApiError(error.message, error.code)
+}
+
+/** What the database's re-take refusals mean, for the person who asked. */
+const RETAKE_REFUSALS: Record<string, string> = {
+  retake_in_progress: 'Another line is being re-taken. Wait for it to finish, then try again.',
+  dub_not_retakeable: 'Only lines of your own finished dubs can be re-taken.',
+  line_not_found: 'That line is no longer part of this dub.',
+  retake_text_invalid: 'Write the words of the line, up to 2000 characters.',
+}
+
+/** Asks for one line of a finished dub to be performed again in `text`; returns the re-take's id. */
+export async function requestRetake(dubId: string, idx: number, text: string): Promise<string> {
+  const { data, error } = await supabase.rpc('request_retake', { p_dub_id: dubId, p_idx: idx, p_text: text })
+  if (error) {
+    const refusal = Object.keys(RETAKE_REFUSALS).find((code) => error.message.includes(code))
+    throw new ApiError(refusal ? RETAKE_REFUSALS[refusal]! : error.message, refusal ?? error.code)
+  }
+  return data as string
+}
+
+/** A dub's latest re-takes, newest first. */
+export async function listRetakes(dubId: string): Promise<DubRetakeRow[]> {
+  const result = await supabase.from('dub_retakes').select('*').eq('dub_id', dubId).order('created_at', { ascending: false }).limit(10)
+  return unwrap(result as Result<DubRetakeRow[]>) ?? []
 }
 
 function outputPaths(dub: Pick<DubRow, 'output_path' | 'dubbed_audio_path' | 'srt_original_path' | 'srt_translated_path'>): string[] {

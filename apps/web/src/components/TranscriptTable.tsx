@@ -1,10 +1,11 @@
 import { useEffect, useRef, type ReactNode } from 'react'
+import { RotateCcw } from 'lucide-react'
 import type { DubSegmentRow } from '@vozia/db'
 import { readLinePerformance, type LinePerformance } from '@vozia/shared'
 import { formatDuration } from '../lib/format'
 import { spokenIndex } from '../lib/transcript'
 import { cx, focusRing } from '../lib/utils'
-import { Badge, Card, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRoot, TableRow } from './ui'
+import { Badge, Button, Card, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRoot, TableRow } from './ui'
 
 export interface TranscriptTableProps {
   segments: DubSegmentRow[]
@@ -19,6 +20,10 @@ export interface TranscriptTableProps {
   markColumn?: 'source' | 'target'
   /** When given, each line's time becomes a button that plays the video from that line. */
   onSeek?: (ms: number) => void
+  /** When given, each translated line gets a button to re-take it in new words. */
+  onRetake?: (segment: DubSegmentRow) => void
+  /** The line being re-taken now: it is labeled, and no other line can be re-taken meanwhile. */
+  retakingIdx?: number | null
 }
 
 const MARKER = 'rounded-sm bg-brand-500 px-1 text-gray-950 [box-decoration-break:clone] [-webkit-box-decoration-break:clone]'
@@ -58,6 +63,8 @@ export function TranscriptTable({
   currentMs = null,
   markColumn = 'target',
   onSeek,
+  onRetake,
+  retakingIdx = null,
 }: TranscriptTableProps) {
   const box = useRef<HTMLDivElement>(null)
   const spoken = currentMs === null ? -1 : spokenIndex(segments, currentMs)
@@ -81,6 +88,11 @@ export function TranscriptTable({
               <TableHeaderCell className="w-20">Time</TableHeaderCell>
               <TableHeaderCell>{sourceLabel}</TableHeaderCell>
               <TableHeaderCell>{targetLabel}</TableHeaderCell>
+              {onRetake ? (
+                <TableHeaderCell className="w-px">
+                  <span className="sr-only">Re-take</span>
+                </TableHeaderCell>
+              ) : null}
             </TableRow>
           </TableHead>
           <TableBody>
@@ -122,6 +134,24 @@ export function TranscriptTable({
                     )}
                     {performance ? <LineNotes performance={performance} /> : null}
                   </TableCell>
+                  {onRetake ? (
+                    <TableCell className="w-px whitespace-nowrap text-right">
+                      {retakingIdx === segment.idx ? (
+                        <Badge variant="live">Re-taking</Badge>
+                      ) : segment.translated_text !== null ? (
+                        <Button
+                          variant="ghost"
+                          className="p-1.5"
+                          disabled={retakingIdx !== null}
+                          onClick={() => onRetake(segment)}
+                          aria-label={`Re-take the line at ${time}`}
+                          title="Re-take this line"
+                        >
+                          <RotateCcw className="size-4" aria-hidden="true" />
+                        </Button>
+                      ) : null}
+                    </TableCell>
+                  ) : null}
                 </TableRow>
               )
             })}
