@@ -17,6 +17,7 @@ import type {
   VideoBrief,
   VideoIngestor,
 } from './contracts.js'
+import { directPerformance } from './director.js'
 import { PipelineError } from './errors.js'
 import { attachSounds, lineNotes, performedTiming, voiceAnalysisRequest, wordlessVoice } from './performance.js'
 import { speechWindows } from './speech-windows.js'
@@ -44,6 +45,8 @@ export interface StagedPipelineDeps {
   media: MediaProcessor
   storage: ObjectStorage
   repo: DubRepository
+  /** How many rounds of re-takes a line may get (VOZIA_RETAKE_ROUNDS); defaults to 1. */
+  retakeRounds?: number
 }
 
 /** Ingest → separate → transcribe → translate → synthesize → mux, each stage behind a contract. */
@@ -90,32 +93,40 @@ export class StagedPipeline implements DubbingPipeline {
       const frames = await this.d.media.frames(ingest.videoPath, frameTimes(transcript.segments, cuts, totalDurationMs, looks), ctx)
       brief = await this.d.translator.watch(transcript.segments, { ...languages, frames, cutsMs: cuts, durationMs: totalDurationMs }, ctx)
     }
-    const translated = await this.d.translator.translate(
-      transcript.segments,
-      { ...languages, notes: lineNotes(transcript.segments, sounds, analysis, cuts), brief },
-      ctx,
-    )
+    const notes = lineNotes(transcript.segments, sounds, analysis, cuts)
+    const translateOptions = { ...languages, notes, brief }
+    const translated = await this.d.translator.translate(transcript.segments, translateOptions, ctx)
     await this.d.repo.replaceSegments(dub.id, translated)
 
     await ctx.setStage('synthesizing')
-    // A voice that performs directions also laughs where the speaker laughed, so those lines span their sounds.
-    const performed = this.d.synthesizer.performsDirections ? performedTiming(translated, sounds) : translated
-    const { dubbedVocalsPath } = await this.d.synthesizer.synthesize(
+    // Takes are measured, sent back when they do not fit or do not sound like the original, and laid word by word.
+    const performance = await directPerformance(
+      this.d,
       {
-        segments: performed,
+        segments: translated,
+        notes,
+        sounds,
+        analysis,
+        cutsMs: cuts,
         vocalsPath,
         voiceMode: dub.voice_mode,
         stockVoiceId: dub.stock_voice_id,
-        targetLanguage: dub.target_language,
         totalDurationMs,
+        translateOptions,
+        retakeRounds: this.d.retakeRounds ?? 1,
       },
       ctx,
     )
+    const { dubbedVocalsPath } = performance
+    // Re-takes may have reworded lines: the subtitles follow what is spoken.
+    const final = translated.map((s) => performance.lines.find((line) => line.segment.idx === s.idx)?.segment ?? s)
+    if (performance.lines.some((line) => line.revised)) await this.d.repo.replaceSegments(dub.id, final)
 
     await ctx.setStage('muxing')
     // Between lines the original audio plays untouched, so sounds there survive even when the separator files them
     // under the voice; while someone speaks, the separated background and the recreated noise floor carry the room.
     // The windows follow the performed lines, so a laugh the new voice performs is not also heard from the original.
+    const performed = this.d.synthesizer.performsDirections ? performedTiming(final, sounds) : final
     const bedPath = await this.d.media.buildDubBackground(
       { originalPath: ingest.audioPath, backgroundPath, speech: speechWindows(performed, totalDurationMs) },
       ctx,
@@ -132,8 +143,8 @@ export class StagedPipeline implements DubbingPipeline {
     )
     const originalSrt = path.join(ctx.workdir, 'original.srt')
     const translatedSrt = path.join(ctx.workdir, 'translated.srt')
-    await writeFile(originalSrt, toSrt(translated, 'text'))
-    await writeFile(translatedSrt, toSrt(translated, 'translatedText'))
+    await writeFile(originalSrt, toSrt(final, 'text'))
+    await writeFile(translatedSrt, toSrt(final, 'translatedText'))
 
     const owner = dub.owner_id
     const objects = {

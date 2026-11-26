@@ -45,12 +45,13 @@ describe('fake drivers', () => {
     const translated = await new FakeTranslator().translate(transcript.segments, { sourceLanguage: 'en', targetLanguage: 'pt' }, ctx)
     expect(translated[0]!.translatedText).toBe('[pt] Hello there.')
 
-    const { dubbedVocalsPath } = await new FakeSynthesizer().synthesize(
-      { segments: translated, vocalsPath, voiceMode: 'clone', stockVoiceId: null, targetLanguage: 'pt', totalDurationMs: 6000 },
-      ctx,
-    )
-    expect(await exists(dubbedVocalsPath)).toBe(true)
-    expect(ctx.progressValues.at(-1)).toBe(1)
+    const synthesizer = new FakeSynthesizer()
+    const voice = await synthesizer.openVoice({ voiceMode: 'clone', stockVoiceId: null, samplePath: vocalsPath, targetLanguage: 'pt' }, ctx)
+    const take = path.join(ctx.workdir, 'take.mp3')
+    await voice.speak({ text: translated[0]!.translatedText }, take, ctx)
+    await voice.close(ctx)
+    expect(await exists(take)).toBe(true)
+    expect(synthesizer.spoken).toEqual([{ text: '[pt] Hello there.' }])
   })
 
   it('media stubs every operation', async () => {
@@ -63,6 +64,8 @@ describe('fake drivers', () => {
     expect(await exists(await media.clipAudio(videoPath, { startSec: 0, durationSec: 60 }, ctx))).toBe(true)
     expect(await exists(await media.duck(videoPath, -14, ctx))).toBe(true)
     expect(await exists(await media.assembleTimeline([], 1000, ctx))).toBe(true)
+    expect(await exists(await media.joinSpans(videoPath, [{ startMs: 0, endMs: 900 }], ctx))).toBe(true)
+    expect((await media.joinClips(['a', 'b'], 600, ctx)).spans).toEqual([{ startMs: 0, endMs: 12_000 }, { startMs: 12_600, endMs: 24_600 }])
     const { outputPath } = await media.mux({ videoPath, backgroundPath: videoPath, dubbedVocalsPath: videoPath }, ctx)
     expect(path.basename(outputPath)).toBe('dubbed.mp4')
   })

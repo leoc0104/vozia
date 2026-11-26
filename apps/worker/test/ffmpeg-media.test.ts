@@ -29,14 +29,14 @@ describe('FfmpegMediaProcessor', () => {
     expect(calls.every((c) => c.cwd === w)).toBe(true)
   })
 
-  it('assembles the timeline through a filter script', async () => {
+  it('lays the pieces of each take on the timeline, trimmed, sped up or slowed down, with tiny fades', async () => {
     const { runner, calls } = createRecordingRunner()
     const media = new FfmpegMediaProcessor({ run: runner, ffmpegPath: '/opt/ffmpeg' })
     const ctx = await stageContext()
     const out = await media.assembleTimeline(
       [
-        { placement: { idx: 0, startMs: 0, tempo: 1 }, path: '/c/0.mp3' },
-        { placement: { idx: 1, startMs: 1600, tempo: 1.25 }, path: '/c/1.mp3' },
+        { path: '/c/0-1.mp3', fromMs: 90, toMs: 470, outStartMs: 13_780, tempo: 1 },
+        { path: '/c/0-1.mp3', fromMs: 470, toMs: 900, outStartMs: 14_240, tempo: 1.25 },
       ],
       6000,
       ctx,
@@ -44,13 +44,45 @@ describe('FfmpegMediaProcessor', () => {
     expect(out).toBe(path.join(ctx.workdir, 'dubbed_vocals.wav'))
     const filterPath = path.join(ctx.workdir, 'timeline.filter')
     expect(await readFile(filterPath, 'utf8')).toBe(
-      '[1:a]adelay=0:all=1[c0];\n[2:a]atempo=1.25,adelay=1600:all=1[c1];\n[0:a][c0][c1]amix=inputs=3:normalize=0:duration=first[out]\n',
+      '[1:a]atrim=start=0.090:end=0.470,asetpts=PTS-STARTPTS,afade=t=in:d=0.005,afade=t=out:st=0.375:d=0.005,adelay=13780:all=1[c0];\n' +
+        '[2:a]atrim=start=0.470:end=0.900,asetpts=PTS-STARTPTS,atempo=1.25,afade=t=in:d=0.005,afade=t=out:st=0.339:d=0.005,adelay=14240:all=1[c1];\n' +
+        '[0:a][c0][c1]amix=inputs=3:normalize=0:duration=first[out]\n',
     )
     expect(calls[0]!.cmd).toBe('/opt/ffmpeg')
     expect(calls[0]!.args).toEqual([
-      '-y', '-f', 'lavfi', '-t', '6.000', '-i', 'anullsrc=r=44100:cl=stereo', '-i', '/c/0.mp3', '-i', '/c/1.mp3',
+      '-y', '-f', 'lavfi', '-t', '6.000', '-i', 'anullsrc=r=44100:cl=stereo', '-i', '/c/0-1.mp3', '-i', '/c/0-1.mp3',
       '-filter_complex_script', filterPath, '-map', '[out]', '-ar', '44100', '-ac', '2', '-c:a', 'pcm_s16le', out,
     ])
+  })
+
+  it('joins calm stretches of the voice into a sample to clone from', async () => {
+    const { runner, calls } = createRecordingRunner()
+    const ctx = await stageContext()
+    const out = await new FfmpegMediaProcessor({ run: runner }).joinSpans('/a/vocals.wav', [{ startMs: 1000, endMs: 2500 }, { startMs: 4000, endMs: 4500 }], ctx)
+    expect(out).toBe(path.join(ctx.workdir, 'sample.mp3'))
+    expect(await readFile(path.join(ctx.workdir, 'sample.filter'), 'utf8')).toBe(
+      '[0:a]asplit=2[a0][a1];\n' +
+        '[a0]atrim=start=1.000:end=2.500,asetpts=PTS-STARTPTS,afade=t=in:d=0.01,afade=t=out:st=1.490:d=0.01,apad=pad_dur=0.25[s0];\n' +
+        '[a1]atrim=start=4.000:end=4.500,asetpts=PTS-STARTPTS,afade=t=in:d=0.01,afade=t=out:st=0.490:d=0.01,apad=pad_dur=0.25[s1];\n' +
+        '[s0][s1]concat=n=2:v=0:a=1[out]\n',
+    )
+    expect(calls[0]!.args).toEqual([
+      '-y', '-i', '/a/vocals.wav', '-filter_complex_script', path.join(ctx.workdir, 'sample.filter'),
+      '-map', '[out]', '-ac', '1', '-c:a', 'libmp3lame', '-b:a', '128k', out,
+    ])
+  })
+
+  it('joins takes into one file for measuring and says where each landed', async () => {
+    const { runner, calls } = createRecordingRunner((cmd) => (cmd === 'ffprobe' ? { stdout: '1.25\n' } : undefined))
+    const ctx = await stageContext()
+    const joined = await new FfmpegMediaProcessor({ run: runner }).joinClips(['/c/0-1.mp3', '/c/1-1.mp3'], 600, ctx)
+    expect(joined.spans).toEqual([{ startMs: 0, endMs: 1250 }, { startMs: 1850, endMs: 3100 }])
+    expect(calls[0]!.args).toEqual(['-y', '-i', '/c/0-1.mp3', '-ar', '44100', '-ac', '1', '-c:a', 'pcm_s16le', path.join(ctx.workdir, 'joined', '0-1-0.wav')])
+    expect(await readFile(path.join(ctx.workdir, 'joined', 'join.filter'), 'utf8')).toBe(
+      '[0:a]apad=pad_dur=0.600[c0];\n[1:a]apad=pad_dur=0.600[c1];\n[c0][c1]concat=n=2:v=0:a=1[out]\n',
+    )
+    expect(calls.at(-1)!.args[0]).toBe('-y')
+    expect(joined.path).toMatch(/joined\/takes-.+\.wav$/)
   })
 
   it('muxes background and dubbed vocals onto the video without re-encoding it', async () => {

@@ -3,7 +3,7 @@ import path from 'node:path'
 import type {
   Frame,
   MediaProcessor,
-  Placement,
+  Piece,
   StageContext,
   VoiceAnalysis,
   VoiceAnalysisRequest,
@@ -62,13 +62,22 @@ export class FakeMedia implements MediaProcessor {
     return out
   }
 
-  async assembleTimeline(
-    clips: { placement: Placement; path: string }[],
-    _totalDurationMs: number,
-    ctx: StageContext,
-  ): Promise<string> {
+  async joinSpans(_inputPath: string, spans: TimeWindow[], ctx: StageContext): Promise<string> {
+    const out = path.join(ctx.workdir, 'sample.mp3')
+    await writeFile(out, `fake sample of ${spans.length} stretches\n`)
+    return out
+  }
+
+  async joinClips(paths: string[], gapMs: number, ctx: StageContext): Promise<{ path: string; spans: TimeWindow[] }> {
+    const out = path.join(ctx.workdir, 'takes.wav')
+    await writeFile(out, `fake takes: ${paths.length}\n`)
+    const length = (this.opts.durationSeconds ?? 42) * 1000
+    return { path: out, spans: paths.map((_, k) => ({ startMs: k * (length + gapMs), endMs: k * (length + gapMs) + length })) }
+  }
+
+  async assembleTimeline(pieces: Piece[], _totalDurationMs: number, ctx: StageContext): Promise<string> {
     const out = path.join(ctx.workdir, 'dubbed_vocals.wav')
-    await writeFile(out, `fake timeline of ${clips.length} clips\n`)
+    await writeFile(out, `fake timeline of ${pieces.length} pieces\n`)
     return out
   }
 

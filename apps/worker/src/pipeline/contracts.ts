@@ -201,6 +201,8 @@ export interface Transcriber {
     opts: { languageHint: string | null },
     ctx: StageContext,
   ): Promise<{ language: string; segments: TranscriptSegment[]; events?: SoundEvent[] }>
+  /** The timed words and tagged sounds of an audio file as they are, for measuring takes; one voice, no grouping. */
+  words?(audioPath: string, opts: { languageHint: string | null }, ctx: StageContext): Promise<{ words: Word[]; events: SoundEvent[] }>
 }
 
 export interface TranslateOptions {
@@ -222,13 +224,28 @@ export interface Translator {
   revise?(requests: RevisionRequest[], opts: TranslateOptions, ctx: StageContext): Promise<TranslatedSegment[]>
 }
 
-export interface SynthesisRequest {
-  segments: TranslatedSegment[]
-  vocalsPath: string
+export interface VoiceRequest {
   voiceMode: VoiceMode
   stockVoiceId: string | null
+  /** A clip of the speaker's own voice to clone from, for voiceMode 'clone'. */
+  samplePath: string | null
   targetLanguage: string
-  totalDurationMs: number
+}
+
+/** One take of one line. */
+export interface SpokenLine {
+  text: string
+  /** The lines around it, so the voice carries one continuous performance across lines. */
+  previousText?: string
+  nextText?: string
+  /** Different seeds give different takes of the same line. */
+  seed?: number
+}
+
+export interface VoiceSession {
+  speak(line: SpokenLine, destPath: string, ctx: StageContext): Promise<void>
+  /** Releases the voice (deletes a clone made for this dub). */
+  close(ctx: StageContext): Promise<void>
 }
 
 export interface SpeechSynthesizer {
@@ -237,13 +254,23 @@ export interface SpeechSynthesizer {
    * then leaves the speaker's own laughs and sighs next to each line to the new voice instead of the original audio.
    */
   readonly performsDirections?: boolean
-  synthesize(req: SynthesisRequest, ctx: StageContext): Promise<{ dubbedVocalsPath: string }>
+  /** Prepares the voice for one dub: a clone of the speaker made from `samplePath`, or the chosen stock voice. */
+  openVoice(req: VoiceRequest, ctx: StageContext): Promise<VoiceSession>
 }
 
 /** Where a synthesized clip lands on the original timeline and how much it must be sped up. */
 export interface Placement {
   idx: number
   startMs: number
+  tempo: number
+}
+
+/** A stretch of a take (`fromMs` to `toMs` of the clip) laid on the timeline at `outStartMs`, at `tempo` speed. */
+export interface Piece {
+  path: string
+  fromMs: number
+  toMs: number
+  outStartMs: number
   tempo: number
 }
 
@@ -267,11 +294,15 @@ export interface MediaProcessor {
     input: { originalPath: string; backgroundPath: string; speech: TimeWindow[] },
     ctx: StageContext,
   ): Promise<string>
-  assembleTimeline(
-    clips: { placement: Placement; path: string }[],
-    totalDurationMs: number,
-    ctx: StageContext,
-  ): Promise<string>
+  /** Joins stretches of one file into a short MP3 with brief pauses between them, like a voice sample to clone. */
+  joinSpans(inputPath: string, spans: TimeWindow[], ctx: StageContext): Promise<string>
+  /**
+   * Joins clips end to end into one WAV with `gapMs` of silence between them, so a single pass can measure them all;
+   * returns where each clip landed in it.
+   */
+  joinClips(paths: string[], gapMs: number, ctx: StageContext): Promise<{ path: string; spans: TimeWindow[] }>
+  /** Lays the pieces on a silent track as long as the video. */
+  assembleTimeline(pieces: Piece[], totalDurationMs: number, ctx: StageContext): Promise<string>
   /** Integrated loudness (EBU R128) in LUFS, which ignores silence between lines; null for silence or on failure. */
   loudness(path: string, ctx: StageContext): Promise<number | null>
   /** `voiceGainDb` raises or lowers the new voice, so it can speak as loud as the original speaker did. */

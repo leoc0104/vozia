@@ -1,4 +1,4 @@
-import type { SoundEvent, StageContext, Transcriber, TranscriptSegment } from '../../pipeline/contracts.js'
+import type { SoundEvent, StageContext, Transcriber, TranscriptSegment, Word } from '../../pipeline/contracts.js'
 import { groupWordsIntoSegments, type GroupOptions } from '../../pipeline/segments.js'
 import type { ElevenLabsClient } from './client.js'
 
@@ -35,5 +35,10 @@ export class ElevenLabsTranscriber implements Transcriber {
     const segments = groupWordsIntoSegments(words, this.groupOptions)
     ctx.progress(1)
     return { language: normalizeLanguageCode(languageCode || opts.languageHint || 'en'), segments, events }
+  }
+
+  async words(audioPath: string, opts: { languageHint: string | null }, ctx: StageContext): Promise<{ words: Word[]; events: SoundEvent[] }> {
+    const { words, events } = await this.client.speechToText(audioPath, { languageCode: opts.languageHint, diarize: false }, ctx.signal)
+    return { words, events }
   }
 }

@@ -75,17 +75,17 @@ describe('StagedPipeline', () => {
         }),
         cuts: vi.spyOn(media, 'sceneCuts').mockResolvedValue([7950]),
         translate: vi.spyOn(translator, 'translate'),
-        synthesize: vi.spyOn(synthesizer, 'synthesize'),
         background: vi.spyOn(media, 'buildDubBackground'),
+        assemble: vi.spyOn(media, 'assembleTimeline'),
       }
       const transcriber = new FakeTranscriber({ segments: lines, events })
       const { ctx, pipeline, repo } = await setup(makeJob(), { media, translator, synthesizer, transcriber })
       await pipeline.run(makeJob(), ctx)
-      return { ...spies, repo }
+      return { ...spies, repo, synthesizer }
     }
 
     it('are re-performed by a voice that performs directions, and the original laugh gives way', async () => {
-      const { measure, translate, synthesize, background, repo } = await dub(new FakeSynthesizer({ performsDirections: true }))
+      const { measure, translate, background, assemble, repo, synthesizer } = await dub(new FakeSynthesizer({ performsDirections: true }))
 
       expect(measure.mock.calls[0]![0]).toMatch(/vocals/)
       expect(measure.mock.calls[0]![1].lines.map((l) => l.idx)).toEqual([0, 1])
@@ -100,9 +100,9 @@ describe('StagedPipeline', () => {
       // The picture cuts 50 ms before "Ufa.": that line starts on the cut.
       expect(notes.get(1)!.cuts).toEqual([0])
 
-      const performed = synthesize.mock.calls[0]![0].segments
-      expect(performed[0]).toMatchObject({ startMs: 1000, endMs: 4500, performanceText: 'Socorro! [laughter]', performedSounds: [0] })
-      expect(performed[1]).toMatchObject({ startMs: 8000, endMs: 9000 })
+      expect(synthesizer.spoken.map((line) => line.text)).toEqual(['Socorro! [laughter]', '[pt] Ufa.'])
+      // The stand-in transcriber gives no word timings, so each take starts where its line does.
+      expect(assemble.mock.calls[0]![0].map((piece) => piece.outStartMs)).toEqual([1000, 8000])
       expect(background.mock.calls[0]![0].speech).toEqual([
         { startMs: 900, endMs: 4650 },
         { startMs: 7900, endMs: 9150 },
@@ -112,8 +112,8 @@ describe('StagedPipeline', () => {
     })
 
     it('stay original when the voice cannot perform them', async () => {
-      const { synthesize, background } = await dub(new FakeSynthesizer())
-      expect(synthesize.mock.calls[0]![0].segments[0]).toMatchObject({ startMs: 1000, endMs: 3000 })
+      const { synthesizer, background } = await dub(new FakeSynthesizer())
+      expect(synthesizer.spoken[0]!.text).toBe('[pt] Socorro!')
       expect(background.mock.calls[0]![0].speech).toEqual([
         { startMs: 900, endMs: 3150 },
         { startMs: 7900, endMs: 9150 },

@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import type {
   Frame,
   MediaProcessor,
-  Placement,
+  Piece,
   StageContext,
   VoiceAnalysis,
   VoiceAnalysisRequest,
@@ -135,30 +135,83 @@ export class FfmpegMediaProcessor implements MediaProcessor {
     return out
   }
 
-  async assembleTimeline(
-    clips: { placement: Placement; path: string }[],
-    totalDurationMs: number,
-    ctx: StageContext,
-  ): Promise<string> {
+  async joinSpans(inputPath: string, spans: TimeWindow[], ctx: StageContext): Promise<string> {
+    const out = path.join(ctx.workdir, 'sample.mp3')
+    const filterPath = path.join(ctx.workdir, 'sample.filter')
+    const labels = spans.map((_, k) => `[s${k}]`)
+    const lines = [
+      `[0:a]asplit=${Math.max(1, spans.length)}${spans.map((_, k) => `[a${k}]`).join('')}`,
+      ...spans.map((span, k) => {
+        const length = (span.endMs - span.startMs) / 1000
+        // Short fades and a quarter second between stretches, so the clone hears clean, separate phrases.
+        return `[a${k}]atrim=start=${seconds(span.startMs)}:end=${seconds(span.endMs)},asetpts=PTS-STARTPTS,afade=t=in:d=0.01,afade=t=out:st=${Math.max(0, length - 0.01).toFixed(3)}:d=0.01,apad=pad_dur=0.25${labels[k]}`
+      }),
+      `${labels.join('')}concat=n=${spans.length}:v=0:a=1[out]`,
+    ]
+    await writeFile(filterPath, `${lines.join(';\n')}\n`)
+    await this.exec(
+      this.ffmpeg,
+      ['-y', '-i', inputPath, '-filter_complex_script', filterPath, '-map', '[out]', '-ac', '1', '-c:a', 'libmp3lame', '-b:a', '128k', out],
+      ctx,
+      'Voice sample extraction',
+    )
+    return out
+  }
+
+  async joinClips(paths: string[], gapMs: number, ctx: StageContext): Promise<{ path: string; spans: TimeWindow[] }> {
+    const dir = path.join(ctx.workdir, 'joined')
+    await mkdir(dir, { recursive: true })
+    const out = path.join(dir, `takes-${Date.now().toString(36)}.wav`)
+    const spans: TimeWindow[] = []
+    const wavs: string[] = []
+    let at = 0
+    for (const [k, clip] of paths.entries()) {
+      // Decoded first, so the measured length is exactly what plays.
+      const wav = path.join(dir, `${path.parse(clip).name}-${k}.wav`)
+      await this.exec(this.ffmpeg, ['-y', '-i', clip, '-ar', '44100', '-ac', '1', '-c:a', 'pcm_s16le', wav], ctx, 'Take decoding')
+      const ms = Math.round((await this.probeDurationSeconds(wav, ctx)) * 1000)
+      spans.push({ startMs: at, endMs: at + ms })
+      at += ms + gapMs
+      wavs.push(wav)
+    }
+    const filterPath = path.join(dir, 'join.filter')
+    const parts = wavs.map((_, k) => `[${k}:a]apad=pad_dur=${(gapMs / 1000).toFixed(3)}[c${k}]`)
+    await writeFile(filterPath, `${[...parts, `${wavs.map((_, k) => `[c${k}]`).join('')}concat=n=${wavs.length}:v=0:a=1[out]`].join(';\n')}\n`)
+    await this.exec(
+      this.ffmpeg,
+      ['-y', ...wavs.flatMap((wav) => ['-i', wav]), '-filter_complex_script', filterPath, '-map', '[out]', '-c:a', 'pcm_s16le', out],
+      ctx,
+      'Joining takes',
+    )
+    return { path: out, spans }
+  }
+
+  async assembleTimeline(pieces: Piece[], totalDurationMs: number, ctx: StageContext): Promise<string> {
     const out = path.join(ctx.workdir, 'dubbed_vocals.wav')
     const filterPath = path.join(ctx.workdir, 'timeline.filter')
     const totalSec = (totalDurationMs / 1000).toFixed(3)
     const args = ['-y', '-f', 'lavfi', '-t', totalSec, '-i', 'anullsrc=r=44100:cl=stereo']
     const lines: string[] = []
     const labels: string[] = []
-    clips.forEach((clip, i) => {
-      args.push('-i', clip.path)
+    pieces.forEach((piece, i) => {
+      args.push('-i', piece.path)
+      const length = (piece.toMs - piece.fromMs) / piece.tempo / 1000
+      // 5 ms fades: pieces of one take meet at word boundaries, and the fades keep the joins from clicking.
       const chain = [
-        ...(clip.placement.tempo !== 1 ? [`atempo=${clip.placement.tempo}`] : []),
-        `adelay=${clip.placement.startMs}:all=1`,
+        `atrim=start=${seconds(piece.fromMs)}:end=${seconds(piece.toMs)}`,
+        'asetpts=PTS-STARTPTS',
+        ...(piece.tempo !== 1 ? [`atempo=${piece.tempo}`] : []),
+        'afade=t=in:d=0.005',
+        `afade=t=out:st=${Math.max(0, length - 0.005).toFixed(3)}:d=0.005`,
+        `adelay=${Math.max(0, Math.round(piece.outStartMs))}:all=1`,
       ]
       lines.push(`[${i + 1}:a]${chain.join(',')}[c${i}]`)
       labels.push(`[c${i}]`)
     })
     lines.push(
-      clips.length === 0
+      pieces.length === 0
         ? '[0:a]anull[out]'
-        : `[0:a]${labels.join('')}amix=inputs=${clips.length + 1}:normalize=0:duration=first[out]`,
+        : `[0:a]${labels.join('')}amix=inputs=${pieces.length + 1}:normalize=0:duration=first[out]`,
     )
     await writeFile(filterPath, `${lines.join(';\n')}\n`)
     args.push('-filter_complex_script', filterPath, '-map', '[out]', '-ar', '44100', '-ac', '2', '-c:a', 'pcm_s16le', out)

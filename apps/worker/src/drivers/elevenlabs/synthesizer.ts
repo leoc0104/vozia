@@ -1,18 +1,13 @@
-import { mkdir } from 'node:fs/promises'
-import path from 'node:path'
-import type { MediaProcessor, SpeechSynthesizer, StageContext, SynthesisRequest } from '../../pipeline/contracts.js'
-import { PipelineError } from '../../pipeline/errors.js'
-import { planTimeline } from '../../pipeline/timeline.js'
+import type { SpeechSynthesizer, StageContext, VoiceRequest, VoiceSession } from '../../pipeline/contracts.js'
+import { PipelineError, ProviderError } from '../../pipeline/errors.js'
 import type { ElevenLabsClient } from './client.js'
 
 export interface ElevenLabsSynthesizerOptions {
   client: Pick<ElevenLabsClient, 'addVoice' | 'deleteVoice' | 'textToSpeech'>
-  media: MediaProcessor
   /** The speech model; defaults to DEFAULT_SPEECH_MODEL. */
   modelId?: string
   /** Keep the instant voice clone after the job instead of deleting it (costs a voice slot). */
   keepClonedVoice?: boolean
-  sampleSeconds?: number
 }
 
 /** ElevenLabs' most emotive model: it performs directions like [laughs] or [panicked] in the cloned voice. */
@@ -23,7 +18,7 @@ export function modelPerformsDirections(modelId: string): boolean {
   return /^eleven_v[34](_|$)/.test(modelId)
 }
 
-/** Clones the speaker (or uses a stock voice), synthesizes each translated cue and lays the clips on the original timeline. */
+/** Clones the speaker from a sample (or uses a stock voice) and speaks lines in that voice, one request per take. */
 export class ElevenLabsSynthesizer implements SpeechSynthesizer {
   readonly performsDirections: boolean
   private readonly modelId: string
@@ -33,45 +28,43 @@ export class ElevenLabsSynthesizer implements SpeechSynthesizer {
     this.performsDirections = modelPerformsDirections(this.modelId)
   }
 
-  async synthesize(req: SynthesisRequest, ctx: StageContext): Promise<{ dubbedVocalsPath: string }> {
-    const { client, media } = this.opts
+  async openVoice(req: VoiceRequest, ctx: StageContext): Promise<VoiceSession> {
+    const { client } = this.opts
     let voiceId: string
     let cloned = false
-
     if (req.voiceMode === 'stock') {
       if (!req.stockVoiceId) throw new PipelineError('No stock voice was selected for this dub.')
       voiceId = req.stockVoiceId
     } else {
-      const sample = await media.clipAudio(req.vocalsPath, { startSec: 0, durationSec: this.opts.sampleSeconds ?? 60 }, ctx)
-      voiceId = (await client.addVoice(`vozia-${Date.now().toString(36)}`, sample, ctx.signal)).voiceId
+      if (!req.samplePath) throw new PipelineError('There is no voice sample to clone the speaker from.')
+      voiceId = (await client.addVoice(`vozia-${Date.now().toString(36)}`, req.samplePath, ctx.signal)).voiceId
       cloned = true
     }
-
-    try {
-      const spoken = req.segments.filter((s) => s.translatedText.trim() !== '')
-      const clipsDir = path.join(ctx.workdir, 'clips')
-      await mkdir(clipsDir, { recursive: true })
-      const clipPaths: string[] = []
-      const clipDurationsMs: number[] = []
-      for (const [i, segment] of spoken.entries()) {
-        const clipPath = path.join(clipsDir, `${segment.idx}.mp3`)
-        const text = (this.performsDirections && segment.performanceText) || segment.translatedText
-        await client.textToSpeech(voiceId, text, { modelId: this.modelId }, clipPath, ctx.signal)
-        clipPaths.push(clipPath)
-        clipDurationsMs.push(Math.round((await media.probeDurationSeconds(clipPath, ctx)) * 1000))
-        ctx.progress((i + 1) / (spoken.length + 1))
-      }
-      const placements = new Map(planTimeline(spoken, clipDurationsMs, req.totalDurationMs).map((p) => [p.idx, p]))
-      const clips = spoken.map((segment, i) => ({ placement: placements.get(segment.idx)!, path: clipPaths[i]! }))
-      const dubbedVocalsPath = await media.assembleTimeline(clips, req.totalDurationMs, ctx)
-      ctx.progress(1)
-      return { dubbedVocalsPath }
-    } finally {
-      if (cloned && !this.opts.keepClonedVoice) {
+    // The expressive models take the target language, which helps them read numbers and names; older ones may not.
+    const languageCode = this.performsDirections ? req.targetLanguage : undefined
+    let withContext = true
+    const modelId = this.modelId
+    const keepClone = this.opts.keepClonedVoice === true
+    return {
+      async speak(line, destPath, ctx) {
+        const base = { modelId, ...(languageCode ? { languageCode } : {}), ...(line.seed !== undefined ? { seed: line.seed } : {}) }
+        const context = withContext && (line.previousText || line.nextText) ? { previousText: line.previousText, nextText: line.nextText } : null
+        try {
+          await client.textToSpeech(voiceId, line.text, { ...base, ...context }, destPath, ctx.signal)
+        } catch (error) {
+          // A model that refuses the neighbouring lines gets each line alone, for the rest of the dub.
+          if (!context || !(error instanceof ProviderError) || (error.status !== 400 && error.status !== 422)) throw error
+          ctx.log.warn({ error }, 'the speech model refused the neighbouring lines as context: speaking each line alone')
+          withContext = false
+          await client.textToSpeech(voiceId, line.text, base, destPath, ctx.signal)
+        }
+      },
+      async close(ctx) {
+        if (!cloned || keepClone) return
         await client.deleteVoice(voiceId, ctx.signal).catch((error: unknown) => {
           ctx.log.warn({ error, voiceId }, 'could not delete the cloned voice')
         })
-      }
+      },
     }
   }
 }

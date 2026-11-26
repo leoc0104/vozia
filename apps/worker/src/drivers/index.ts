@@ -93,9 +93,11 @@ export function buildComponents(config: WorkerConfig, deps: ComponentDeps): Comp
         : new FakeTranslator()
     const synthesizer =
       config.drivers.synthesizer === 'elevenlabs'
-        ? new ElevenLabsSynthesizer({ client: requireElevenLabs(), media, modelId: config.speechModel })
+        ? new ElevenLabsSynthesizer({ client: requireElevenLabs(), modelId: config.speechModel })
         : new FakeSynthesizer()
-    pipeline = new StagedPipeline({ ingestor, separator, transcriber, translator, synthesizer, media, storage, repo })
+    pipeline = new StagedPipeline({
+      ingestor, separator, transcriber, translator, synthesizer, media, storage, repo, retakeRounds: config.retakeRounds,
+    })
   }
 
   return { pipeline, queue, repo, storage, media }
