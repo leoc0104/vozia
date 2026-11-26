@@ -1,5 +1,5 @@
 import type { DubQuality, DubStatus, LinePerformance, Pipeline } from '@vozia/shared'
-import type { DubRow, ProfileRow, VideoRow } from '@vozia/db'
+import type { DubRetakeRow, DubRetakeStatus, DubRow, ProfileRow, VideoRow } from '@vozia/db'
 import type { DubJob, TranscriptSegment, TranslatedSegment } from '../pipeline/contracts.js'
 import type { DubPatch, DubRepository, MarkCompletedInput, VideoIngestPatch } from './contracts.js'
 
@@ -13,6 +13,7 @@ export class InMemoryDubRepository implements DubRepository {
   readonly videos = new Map<string, VideoRow>()
   readonly profiles = new Map<string, ProfileRow>()
   readonly segments = new Map<string, StoredSegment[]>()
+  readonly retakes = new Map<string, DubRetakeRow>()
   readonly history: { dubId: string; status: DubStatus; progress: number }[] = []
 
   seed(job: DubJob): void {
@@ -103,13 +104,29 @@ export class InMemoryDubRepository implements DubRepository {
     )
   }
 
-  async savePerformance(dubId: string, lines: { idx: number; performance: LinePerformance }[], quality: DubQuality): Promise<void> {
+  async savePerformance(
+    dubId: string,
+    lines: { idx: number; performance: LinePerformance; translatedText?: string }[],
+    quality: DubQuality,
+  ): Promise<void> {
     for (const line of lines) {
       const segment = this.segments.get(dubId)?.find((s) => s.idx === line.idx)
-      if (segment) segment.performance = line.performance
+      if (!segment) continue
+      segment.performance = line.performance
+      if (line.translatedText !== undefined) segment.translatedText = line.translatedText
     }
     const dub = this.dubs.get(dubId)
     if (dub) this.dubs.set(dubId, { ...dub, quality: quality as unknown as DubRow['quality'] })
+  }
+
+  async loadRetake(retakeId: string): Promise<DubRetakeRow | null> {
+    const retake = this.retakes.get(retakeId)
+    return retake ? { ...retake } : null
+  }
+
+  async markRetake(retakeId: string, status: DubRetakeStatus, errorMessage: string | null = null): Promise<void> {
+    const retake = this.retakes.get(retakeId)
+    if (retake) this.retakes.set(retakeId, { ...retake, status, error_message: errorMessage })
   }
 
   async updateVideoAfterIngest(videoId: string, patch: VideoIngestPatch): Promise<void> {

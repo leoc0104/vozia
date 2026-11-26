@@ -1,5 +1,5 @@
 import type { DubStatus, Pipeline, SourceType, VoiceMode } from '@vozia/shared'
-import type { DubRow, ProfileRow, VideoRow } from '@vozia/db'
+import type { DubRetakeRow, DubRow, ProfileRow, VideoRow } from '@vozia/db'
 import type { Logger } from '../logger.js'
 import type { TimeWindow } from './speech-windows.js'
 
@@ -62,6 +62,8 @@ export interface RevisionRequest {
   notes?: LineNotes
   /** What went wrong, measured from the take, in plain words. */
   feedback: string[]
+  /** The words are the person's own (a re-take they asked for): only the performance may change. */
+  keepWords?: boolean
 }
 
 /** A non-speech sound the transcriber heard, labeled in the language of the video, like "risos" or "applause". */
@@ -363,4 +365,6 @@ export interface JobContext extends StageContext {
 export interface DubbingPipeline {
   readonly name: Pipeline
   run(job: DubJob, ctx: JobContext): Promise<void>
+  /** Performs one line of a finished dub again with new words and remixes the dub; the dub's status stays put. */
+  retake?(job: DubJob, retake: DubRetakeRow, ctx: StageContext): Promise<void>
 }

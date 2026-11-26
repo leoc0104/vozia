@@ -15,7 +15,7 @@ import type {
   VideoBrief,
 } from '../pipeline/contracts.js'
 import { PipelineError, ProviderError } from '../pipeline/errors.js'
-import { dropEdgeSounds, hasDirections, stripDirections, validAnchors } from '../pipeline/performance.js'
+import { dropEdgeSounds, hasDirections, stripDirections, validAnchors, wordsOf } from '../pipeline/performance.js'
 import { captionTimes, framesFor } from '../pipeline/watching.js'
 
 export const TranslationSchema = z.object({
@@ -105,7 +105,7 @@ You get the whole transcript (numbered lines with their start and end in seconds
 
 Describe only what the frames show; do not guess what happens between them.`
 
-const REVISE_PREAMBLE = `These segments were translated and performed before, but the takes did not work. \`current\` is what was performed and \`feedback\` says what went wrong, measured from the take. Return a new translation and performance for every idx that fixes the feedback: shorten or lengthen the words when the timing is off, and change the directions when the delivery is off. Keep whatever worked.`
+const REVISE_PREAMBLE = `These segments were translated and performed before, but the takes did not work. \`current\` is what was performed and \`feedback\` says what went wrong, measured from the take. Return a new translation and performance for every idx that fixes the feedback: shorten or lengthen the words when the timing is off, and change the directions when the delivery is off. Keep whatever worked. When \`keepWords\` is true, the words were written by the person who made this dub: return them exactly as in \`current.text\`, and change only the performance (directions, punctuation, emphasis) and the anchors.`
 
 export interface AnthropicTranslatorOptions {
   apiKey?: string
@@ -261,10 +261,11 @@ export class AnthropicTranslator implements Translator {
   async revise(requests: RevisionRequest[], opts: TranslateOptions, ctx: StageContext): Promise<TranslatedSegment[]> {
     const revised: TranslatedSegment[] = []
     for (const batch of chunk(requests, this.batchSize)) {
-      const lines = batch.map(({ segment, notes, feedback }) => ({
+      const lines = batch.map(({ segment, notes, feedback, keepWords }) => ({
         ...this.payload(segment, notes ?? opts.notes?.get(segment.idx), opts),
         current: { text: segment.translatedText, performance: segment.performanceText ?? segment.translatedText },
         feedback,
+        ...(keepWords ? { keepWords: true } : {}),
       }))
       const output = await this.call(TranslationSchema, SYSTEM_PROMPT, [
         text(`${this.context(opts)}\n\n${REVISE_PREAMBLE}\n\nSegments:\n${JSON.stringify(lines)}`),
@@ -273,7 +274,7 @@ export class AnthropicTranslator implements Translator {
       for (const item of output.translations) {
         const request = byIdx.get(item.idx)
         if (!request || item.text.trim() === '') continue
-        revised.push(finish(request.segment, item, request.notes ?? opts.notes?.get(item.idx)))
+        revised.push(finish(request.segment, item, request.notes ?? opts.notes?.get(item.idx), request.keepWords))
         byIdx.delete(item.idx)
       }
     }
@@ -320,11 +321,14 @@ export class AnthropicTranslator implements Translator {
   }
 }
 
-/** A model answer made safe to perform: valid sounds and anchors only, and no sound where the original has none. */
-function finish(segment: TranscriptSegment, item: Item, notes: LineNotes | undefined): TranslatedSegment {
-  const { translatedText: _text, performanceText: _performance, performedSounds: _sounds, anchors: _anchors, ...base } =
+/**
+ * A model answer made safe to perform: valid sounds and anchors only, and no sound where the original has none. With
+ * `keepWords`, the line keeps the words it came with, and a performance that changed them is not used.
+ */
+function finish(segment: TranscriptSegment, item: Item, notes: LineNotes | undefined, keepWords = false): TranslatedSegment {
+  const { translatedText: given, performanceText: _performance, performedSounds: _sounds, anchors: _anchors, ...base } =
     segment as TranslatedSegment
-  const translatedText = item.text.trim()
+  const translatedText = keepWords && given ? given : item.text.trim()
   const anchors = validAnchors(item.anchors, base.text, translatedText)
   const withAnchors = anchors.length > 0 ? { anchors } : {}
   // Only sounds that were listed, and only when the performance directs anything at all, so that a laugh the voice
@@ -334,8 +338,10 @@ function finish(segment: TranscriptSegment, item: Item, notes: LineNotes | undef
   let performed = hasDirections(item.performance) ? [...new Set(item.performedSounds)].filter((id) => listed.has(id)) : []
   const at = (position: string) => performed.some((id) => sounds.find((sound) => sound.id === id)?.position === position)
   const performance = dropEdgeSounds(item.performance.trim(), { before: at('before'), after: at('after') })
-  // A performance that lost its words would leave the line unsaid; the plain translation is the safe fallback.
-  if (stripDirections(performance) === '') return { ...base, translatedText, ...withAnchors }
+  // A performance that lost its words would leave the line unsaid, and one that changed the person's own words would
+  // say something else: the plain words are the safe fallback.
+  const changedWords = keepWords && wordsOf(stripDirections(performance)).join(' ') !== wordsOf(translatedText).join(' ')
+  if (stripDirections(performance) === '' || changedWords) return { ...base, translatedText, ...withAnchors }
   if (!hasDirections(performance)) performed = []
   return {
     ...base,

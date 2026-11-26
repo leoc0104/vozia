@@ -143,11 +143,17 @@ describe('StagedPipeline', () => {
     expect(dub.detected_language).toBe('en')
     expect(dub.output_path).toBe(`${OWNER_ID}/${DUB_ID}/dubbed.mp4`)
     expect(dub.srt_translated_path).toBe(`${OWNER_ID}/${DUB_ID}/translated.srt`)
+    // The dub, and what a later re-take of one of its lines needs: its state, the voice sample and each line's take.
     expect(await storage.list('outputs')).toEqual([
       `${OWNER_ID}/${DUB_ID}/dubbed.mp4`,
       `${OWNER_ID}/${DUB_ID}/dubbed_vocals.wav`,
       `${OWNER_ID}/${DUB_ID}/original.srt`,
       `${OWNER_ID}/${DUB_ID}/translated.srt`,
+      `${OWNER_ID}/${DUB_ID}/work/sample.mp3`,
+      `${OWNER_ID}/${DUB_ID}/work/state.json`,
+      `${OWNER_ID}/${DUB_ID}/work/takes/0.mp3`,
+      `${OWNER_ID}/${DUB_ID}/work/takes/1.mp3`,
+      `${OWNER_ID}/${DUB_ID}/work/takes/2.mp3`,
     ])
     expect(await storage.list('sources')).toEqual([`${OWNER_ID}/${VIDEO_ID}/original.mp4`, `${OWNER_ID}/${VIDEO_ID}/thumb.jpg`])
 

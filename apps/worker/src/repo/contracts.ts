@@ -1,5 +1,5 @@
 import type { DubQuality, DubStatus, LinePerformance, Pipeline } from '@vozia/shared'
-import type { DubRow } from '@vozia/db'
+import type { DubRetakeRow, DubRetakeStatus, DubRow } from '@vozia/db'
 import type { DubJob, TranscriptSegment, TranslatedSegment } from '../pipeline/contracts.js'
 
 export interface MarkCompletedInput {
@@ -34,7 +34,16 @@ export interface DubRepository {
   /** Clears a previous attempt's error fields before an interrupted dub is re-run (status is left alone). */
   prepareRerun(dubId: string): Promise<void>
   replaceSegments(dubId: string, segments: (TranscriptSegment | TranslatedSegment)[]): Promise<void>
-  /** Stores how each line was performed and how close the dub came to the original. */
-  savePerformance(dubId: string, lines: { idx: number; performance: LinePerformance }[], quality: DubQuality): Promise<void>
+  /**
+   * Stores how each line was performed and how close the dub came to the original; a line's `translatedText`, when
+   * given, replaces its words too (a re-take with new words).
+   */
+  savePerformance(
+    dubId: string,
+    lines: { idx: number; performance: LinePerformance; translatedText?: string }[],
+    quality: DubQuality,
+  ): Promise<void>
+  loadRetake(retakeId: string): Promise<DubRetakeRow | null>
+  markRetake(retakeId: string, status: DubRetakeStatus, errorMessage?: string | null): Promise<void>
   updateVideoAfterIngest(videoId: string, patch: VideoIngestPatch): Promise<void>
 }

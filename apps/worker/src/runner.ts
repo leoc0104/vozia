@@ -81,6 +81,7 @@ export class WorkerRunner {
       return 'skipped'
     }
     const dubId = parsed.data.dub_id
+    if (parsed.data.retake_id) return this.handleRetake(message, dubId, parsed.data.retake_id)
     const log = this.d.log.child({ dubId, msgId: message.msgId })
 
     const job = await repo.loadJob(dubId)
@@ -130,6 +131,63 @@ export class WorkerRunner {
     } finally {
       clearInterval(heartbeat)
       ctx.dispose()
+      await queue.archive(message.msgId).catch((error: unknown) => log.error({ error }, 'could not archive message'))
+      await rm(workdir, { recursive: true, force: true }).catch(() => undefined)
+    }
+    return result
+  }
+
+  /**
+   * One line of a finished dub, performed again. The dub keeps its status (and stays playable) throughout: only the
+   * re-take's own row moves from queued to running to done or failed.
+   */
+  private async handleRetake(message: QueueMessage, dubId: string, retakeId: string): Promise<HandleResult> {
+    const { queue, repo, pipeline, config } = this.d
+    const log = this.d.log.child({ dubId, retakeId, msgId: message.msgId })
+    const retake = await repo.loadRetake(retakeId)
+    if (!retake || retake.dub_id !== dubId || retake.status === 'done' || retake.status === 'failed') {
+      log.info('re-take no longer wanted; discarding message')
+      await queue.archive(message.msgId)
+      return 'skipped'
+    }
+    const job = await repo.loadJob(dubId)
+    const refuse = async (reason: string): Promise<HandleResult> => {
+      log.warn({ reason }, 're-take refused')
+      await repo.markRetake(retakeId, 'failed', reason)
+      await queue.archive(message.msgId)
+      return 'failed'
+    }
+    if (!job) {
+      await queue.archive(message.msgId)
+      return 'skipped'
+    }
+    if (job.dub.status !== 'completed' || !pipeline.retake) return refuse('Only lines of a finished dub can be re-taken.')
+    if (message.readCount > config.maxAttempts) return refuse('The worker crashed repeatedly while re-taking this line.')
+
+    const workdir = path.join(config.workdirRoot || os.tmpdir(), 'vozia', `${dubId}-retake`)
+    await rm(workdir, { recursive: true, force: true })
+    await mkdir(workdir, { recursive: true })
+    const ctx = { workdir, log, signal: AbortSignal.timeout(config.stageTimeoutMs), progress: () => undefined }
+    const heartbeat = setInterval(() => {
+      queue.extend(message.msgId, config.visibilityTimeoutS).catch((error: unknown) => log.warn({ error }, 'heartbeat failed'))
+    }, config.heartbeatMs)
+    heartbeat.unref()
+
+    let result: HandleResult
+    try {
+      await repo.markRetake(retakeId, 'running')
+      await pipeline.retake(job, retake, ctx)
+      await repo.markRetake(retakeId, 'done')
+      log.info('line re-taken')
+      result = 'completed'
+    } catch (error) {
+      log.error({ error }, 're-take failed')
+      await repo
+        .markRetake(retakeId, 'failed', userMessageFor(error))
+        .catch((markError: unknown) => log.error({ error: markError }, 'could not record the failure'))
+      result = 'failed'
+    } finally {
+      clearInterval(heartbeat)
       await queue.archive(message.msgId).catch((error: unknown) => log.error({ error }, 'could not archive message'))
       await rm(workdir, { recursive: true, force: true }).catch(() => undefined)
     }

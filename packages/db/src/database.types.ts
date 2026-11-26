@@ -63,6 +63,21 @@ export type DubSegmentRow = {
   performance: Json | null
 }
 
+export type DubRetakeStatus = 'queued' | 'running' | 'done' | 'failed'
+
+/** One line of a finished dub, asked to be performed again with new words. */
+export type DubRetakeRow = {
+  id: string
+  dub_id: string
+  owner_id: string
+  idx: number
+  text: string
+  status: DubRetakeStatus
+  error_message: string | null
+  created_at: string
+  updated_at: string
+}
+
 type Relationship = {
   foreignKeyName: string
   columns: string[]
@@ -100,6 +115,12 @@ export type Database = {
         Update: Partial<DubRow>
         Relationships: Relationship[]
       }
+      dub_retakes: {
+        Row: DubRetakeRow
+        Insert: never
+        Update: Partial<DubRetakeRow>
+        Relationships: Relationship[]
+      }
       dub_segments: {
         Row: DubSegmentRow
         Insert: Partial<Omit<DubSegmentRow, 'dub_id' | 'idx' | 'start_ms' | 'end_ms' | 'text'>> & {
@@ -116,6 +137,7 @@ export type Database = {
     Views: { [_ in never]: never }
     Functions: {
       retry_dub: { Args: { p_dub_id: string }; Returns: undefined }
+      request_retake: { Args: { p_dub_id: string; p_idx: number; p_text: string }; Returns: string }
     }
     Enums: { [_ in never]: never }
     CompositeTypes: { [_ in never]: never }

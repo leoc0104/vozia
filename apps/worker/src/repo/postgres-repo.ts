@@ -1,5 +1,5 @@
 import type { DubQuality, DubStatus, LinePerformance, Pipeline } from '@vozia/shared'
-import type { DubRow, ProfileRow, VideoRow } from '@vozia/db'
+import type { DubRetakeRow, DubRetakeStatus, DubRow, ProfileRow, VideoRow } from '@vozia/db'
 import type { Sql } from '../db.js'
 import type { DubJob, TranscriptSegment, TranslatedSegment } from '../pipeline/contracts.js'
 import type { DubPatch, DubRepository, MarkCompletedInput, VideoIngestPatch } from './contracts.js'
@@ -88,13 +88,30 @@ export class PostgresDubRepository implements DubRepository {
     })
   }
 
-  async savePerformance(dubId: string, lines: { idx: number; performance: LinePerformance }[], quality: DubQuality): Promise<void> {
+  async savePerformance(
+    dubId: string,
+    lines: { idx: number; performance: LinePerformance; translatedText?: string }[],
+    quality: DubQuality,
+  ): Promise<void> {
     await this.sql.begin(async (sql) => {
       for (const line of lines) {
-        await sql`update public.dub_segments set performance = ${sql.json(line.performance as never)} where dub_id = ${dubId} and idx = ${line.idx}`
+        await sql`
+          update public.dub_segments
+          set performance = ${sql.json(line.performance as never)},
+              translated_text = coalesce(${line.translatedText ?? null}, translated_text)
+          where dub_id = ${dubId} and idx = ${line.idx}`
       }
       await sql`update public.dubs set quality = ${sql.json(quality as never)} where id = ${dubId}`
     })
+  }
+
+  async loadRetake(retakeId: string): Promise<DubRetakeRow | null> {
+    const [row] = await this.sql<DubRetakeRow[]>`select * from public.dub_retakes where id = ${retakeId}`
+    return row ?? null
+  }
+
+  async markRetake(retakeId: string, status: DubRetakeStatus, errorMessage: string | null = null): Promise<void> {
+    await this.sql`update public.dub_retakes set status = ${status}, error_message = ${errorMessage} where id = ${retakeId}`
   }
 
   async updateVideoAfterIngest(videoId: string, patch: VideoIngestPatch): Promise<void> {

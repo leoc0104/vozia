@@ -148,6 +148,28 @@ describe('directPerformance', () => {
     expect(performance).toMatchObject({ measured: true, pitchOffsetSt: 2 })
   })
 
+  it('re-takes only the lines asked for, keeping the others exactly where they were, in the same voice', async () => {
+    const kept = {
+      segment: segments[0]!,
+      spoken: 'Oh my God',
+      pieces: [{ path: '/w/kept/0.mp3', fromMs: 40, toMs: 1200, outStartMs: 940, tempo: 1 }],
+      takes: 1,
+      revised: false,
+      review: null,
+      alignment: null,
+      delivery: {},
+      soundSpans: [],
+    }
+    const { performance, synthesizer, sample } = await direct({ only: [1], kept: [kept], samplePath: '/w/sample.mp3', retakeRounds: 0 })
+    expect(sample).not.toHaveBeenCalled()
+    expect(synthesizer.spoken.map((line) => line.text)).toEqual(['Help me please somebody help me now'])
+    expect(performance.lines[0]).toBe(kept)
+    expect(performance.performedIdx).toEqual([1])
+    expect(performance.samplePath).toBe('/w/sample.mp3')
+    // The re-taken line still starts on its original first word, after the kept line ends.
+    expect(performance.lines[1]!.pieces.some((piece) => piece.outStartMs === 3000)).toBe(true)
+  })
+
   it('keeps every first take when re-takes are off', async () => {
     const { performance, revise } = await direct({ retakeRounds: 0 })
     expect(revise).not.toHaveBeenCalled()

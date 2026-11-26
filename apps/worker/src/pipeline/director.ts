@@ -44,6 +44,13 @@ export interface DirectorInput {
   translateOptions: TranslateOptions
   /** How many rounds of re-takes a line may get; 0 keeps every first take. */
   retakeRounds: number
+  /** Perform only these lines (a re-take); the others come from `kept`, exactly as they were laid before. */
+  only?: number[]
+  kept?: PerformedLine[]
+  /** The sample the voice was cloned from before, so a re-take speaks in the same voice. */
+  samplePath?: string | null
+  /** The words are the person's own: re-takes may change only how they are performed. */
+  keepWords?: boolean
 }
 
 /** One line of the dub, as performed. */
@@ -69,6 +76,10 @@ export interface Performance {
   pitchOffsetSt: number | null
   /** False when the takes could not be measured: then lines start where the originals did, as before. */
   measured: boolean
+  /** The voice sample the clone was made from, kept for re-takes. */
+  samplePath: string | null
+  /** The lines performed in this run (all of them, or the re-taken ones). */
+  performedIdx: number[]
 }
 
 interface Take {
@@ -140,11 +151,13 @@ export async function directPerformance(deps: DirectorDeps, input: DirectorInput
   const performs = synthesizer.performsDirections === true
   const spokenOf = (segment: TranslatedSegment) => (performs && segment.performanceText) || segment.translatedText
   const lines = input.segments.filter((s) => s.translatedText.trim() !== '')
+  const kept = new Map((input.kept ?? []).map((line) => [line.segment.idx, line]))
+  const toPerform = lines.filter((line) => (input.only ? input.only.includes(line.idx) : !kept.has(line.idx)))
   const clipsDir = path.join(ctx.workdir, 'clips')
   await mkdir(clipsDir, { recursive: true })
 
-  let samplePath: string | null = null
-  if (input.voiceMode === 'clone') {
+  let samplePath: string | null = input.samplePath ?? null
+  if (input.voiceMode === 'clone' && input.samplePath === undefined) {
     const spans = pickSampleSpans(input.segments, input.analysis, input.sounds, input.totalDurationMs)
     samplePath =
       spans.length > 0
@@ -157,19 +170,26 @@ export async function directPerformance(deps: DirectorDeps, input: DirectorInput
   )
   try {
     const firstStability = (segment: TranslatedSegment) => stabilityFor(input.notes.get(segment.idx)?.delivery)
-    const firstTakes = await speak(voice, lines, lines, 1, spokenOf, firstStability, clipsDir, ctx, (done) => ctx.progress((done / lines.length) * 0.6))
+    const firstTakes = await speak(voice, toPerform, lines, 1, spokenOf, firstStability, clipsDir, ctx, (done) =>
+      ctx.progress((done / Math.max(1, toPerform.length)) * 0.6),
+    )
     const usual = await measure(deps, firstTakes, input.translateOptions.targetLanguage, ctx)
-    if (!usual) return await unmeasured(deps, input, firstTakes, ctx)
+    if (!usual) return await unmeasured(deps, input, firstTakes, kept, samplePath, ctx)
     const takes = new Map(firstTakes.map((take) => [take.segment.idx, [take]]))
     const review = (take: Take) => evaluate(take, input, lines, usual.dub)
     firstTakes.forEach(review)
     ctx.progress(0.7)
 
     for (let round = 2; round <= input.retakeRounds + 1; round++) {
-      const flagged = lines.map((line) => best(takes.get(line.idx)!)).filter((take) => take.review && take.review.feedback.length > 0)
+      const flagged = toPerform.map((line) => best(takes.get(line.idx)!)).filter((take) => take.review && take.review.feedback.length > 0)
       if (flagged.length === 0) break
       ctx.log.info({ round, lines: flagged.map((t) => t.segment.idx) }, 're-taking lines that did not fit or did not sound right')
-      const requests = flagged.map((take) => ({ segment: take.segment, notes: input.notes.get(take.segment.idx), feedback: take.review!.feedback }))
+      const requests = flagged.map((take) => ({
+        segment: take.segment,
+        notes: input.notes.get(take.segment.idx),
+        feedback: take.review!.feedback,
+        ...(input.keepWords ? { keepWords: true } : {}),
+      }))
       const revised = deps.translator.revise ? await deps.translator.revise(requests, input.translateOptions, ctx) : []
       const byIdx = new Map(revised.map((segment) => [segment.idx, segment]))
       // A line the translator did not rewrite gets another take of the same words, which comes out differently.
@@ -194,7 +214,15 @@ export async function directPerformance(deps: DirectorDeps, input: DirectorInput
     const pitches: Parameters<typeof cloneOffset>[0][number][] = []
     let previousEnd = 0
     for (const [i, line] of lines.entries()) {
-      const all = takes.get(line.idx)!
+      const keep = kept.get(line.idx)
+      if (keep && !takes.has(line.idx)) {
+        // A line not re-taken stays exactly where it was.
+        performed.push(keep)
+        previousEnd = Math.max(previousEnd, endOf(keep.pieces))
+        continue
+      }
+      const all = takes.get(line.idx)
+      if (!all) continue
       const chosen = best(all)
       const target = lineTarget(chosen.segment, input, lines, i, previousEnd)
       const alignment = alignTake(chosen.timing!, target)
@@ -214,7 +242,14 @@ export async function directPerformance(deps: DirectorDeps, input: DirectorInput
     }
     const dubbedVocalsPath = await media.assembleTimeline(performed.flatMap((line) => line.pieces), input.totalDurationMs, ctx)
     ctx.progress(1)
-    return { dubbedVocalsPath, lines: performed, pitchOffsetSt: cloneOffset(pitches), measured: true }
+    return {
+      dubbedVocalsPath,
+      lines: performed,
+      pitchOffsetSt: cloneOffset(pitches),
+      measured: true,
+      samplePath,
+      performedIdx: toPerform.map((line) => line.idx),
+    }
   } finally {
     await voice.close(ctx)
   }
@@ -365,13 +400,25 @@ function soundSpans(take: Take, alignment: Alignment): TimeWindow[] {
   return spans
 }
 
+/** Where the last piece of a line ends on the timeline. */
+export function endOf(pieces: readonly Omit<Piece, 'path'>[]): number {
+  return pieces.reduce((end, p) => Math.max(end, Math.round(p.outStartMs + (p.toMs - p.fromMs) / p.tempo)), 0)
+}
+
 /** Without word timings: each take starts where its line did, widened over the sounds it performs, as before. */
-async function unmeasured(deps: DirectorDeps, input: DirectorInput, takes: Take[], ctx: StageContext): Promise<Performance> {
+async function unmeasured(
+  deps: DirectorDeps,
+  input: DirectorInput,
+  takes: Take[],
+  kept: ReadonlyMap<number, PerformedLine>,
+  samplePath: string | null,
+  ctx: StageContext,
+): Promise<Performance> {
   const segments = deps.synthesizer.performsDirections ? performedTiming(input.segments, input.sounds) : input.segments
   const spoken = segments.filter((s) => takes.some((t) => t.segment.idx === s.idx))
   const durations = await Promise.all(takes.map(async (take) => Math.round((await deps.media.probeDurationSeconds(take.path, ctx)) * 1000)))
   const placements = new Map(planTimeline(spoken, durations, input.totalDurationMs).map((p) => [p.idx, p]))
-  const lines: PerformedLine[] = takes.map((take, k) => {
+  const fresh: PerformedLine[] = takes.map((take, k) => {
     const placement = placements.get(take.segment.idx)!
     return {
       segment: take.segment,
@@ -385,7 +432,10 @@ async function unmeasured(deps: DirectorDeps, input: DirectorInput, takes: Take[
       soundSpans: [],
     }
   })
+  const lines = [...fresh, ...[...kept.values()].filter((line) => !fresh.some((f) => f.segment.idx === line.segment.idx))].sort(
+    (a, b) => a.segment.startMs - b.segment.startMs,
+  )
   const dubbedVocalsPath = await deps.media.assembleTimeline(lines.flatMap((line) => line.pieces), input.totalDurationMs, ctx)
   ctx.progress(1)
-  return { dubbedVocalsPath, lines, pitchOffsetSt: null, measured: false }
+  return { dubbedVocalsPath, lines, pitchOffsetSt: null, measured: false, samplePath, performedIdx: takes.map((take) => take.segment.idx) }
 }

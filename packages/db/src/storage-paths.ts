@@ -1,7 +1,15 @@
 export const BUCKETS = { sources: 'sources', outputs: 'outputs' } as const
 export type Bucket = (typeof BUCKETS)[keyof typeof BUCKETS]
 
-export type OutputFile = 'dubbed.mp4' | 'dubbed_vocals.wav' | 'original.srt' | 'translated.srt'
+export type OutputFile =
+  | 'dubbed.mp4'
+  | 'dubbed_vocals.wav'
+  | 'original.srt'
+  | 'translated.srt'
+  // What a finished dub keeps so its lines can be re-taken: its state, the voice sample and each line's take.
+  | 'work/state.json'
+  | 'work/sample.mp3'
+  | `work/takes/${number}.mp3`
 export type SourceExtension = 'mp4' | 'mov' | 'webm' | 'mkv'
 
 const MIME_TO_EXTENSION: Record<string, SourceExtension> = {

@@ -310,4 +310,23 @@ describe('AnthropicTranslator.revise', () => {
     ])
     expect(textOf(calls[0]!.messages[0]!.content)).toContain('the takes did not work')
   })
+
+  it("keeps the person's own words: only their performance changes, and a performance that changed them is not used", async () => {
+    const segment = { idx: 1, startMs: 0, endMs: 1000, text: 'Socorro!', translatedText: 'Help me, please!' }
+    const run = async (answer: Answer) => {
+      const { client, calls } = echoClient(() => answer)
+      const [line] = await new AnthropicTranslator({ model: 'm', client }).revise(
+        [{ segment, feedback: ['rewritten by the person'], keepWords: true }],
+        { sourceLanguage: 'pt', targetLanguage: 'en' },
+        await stageContext(),
+      )
+      return { line: line!, sent: sentSegments(calls[0]!)[0] }
+    }
+    const directed = await run({ text: 'Help me, please!', performance: '[panicked] HELP me, please!' })
+    expect(directed.sent.keepWords).toBe(true)
+    expect(directed.line).toMatchObject({ translatedText: 'Help me, please!', performanceText: '[panicked] HELP me, please!' })
+    const reworded = await run({ text: 'Help!', performance: '[panicked] Help!' })
+    expect(reworded.line.translatedText).toBe('Help me, please!')
+    expect(reworded.line.performanceText).toBeUndefined()
+  })
 })

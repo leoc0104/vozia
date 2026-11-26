@@ -32,7 +32,8 @@ export class FakeTranslator implements Translator {
 
   /** Says the line again in fewer words, which is what most feedback asks for. */
   async revise(requests: RevisionRequest[], _opts: TranslateOptions, _ctx: StageContext): Promise<TranslatedSegment[]> {
-    return requests.map(({ segment }) => {
+    return requests.map(({ segment, keepWords }) => {
+      if (keepWords) return { ...segment }
       const words = segment.translatedText.split(' ')
       const shorter = words.slice(0, Math.max(1, Math.ceil(words.length * 0.75))).join(' ')
       const { performanceText: _performance, performedSounds: _sounds, anchors: _anchors, ...rest } = segment

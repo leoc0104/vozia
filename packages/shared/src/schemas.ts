@@ -57,7 +57,8 @@ export const CreateDubInputSchema = z
 
 export type CreateDubInput = z.infer<typeof CreateDubInputSchema>
 
-export const DubJobMessageSchema = z.object({ dub_id: z.uuid() })
+/** A queued dub, or with `retake_id` one line of a finished dub to perform again. */
+export const DubJobMessageSchema = z.object({ dub_id: z.uuid(), retake_id: z.uuid().optional() })
 export type DubJobMessage = z.infer<typeof DubJobMessageSchema>
 
 export const ALLOWED_VIDEO_MIME = ['video/mp4', 'video/quicktime', 'video/webm', 'video/x-matroska'] as const
