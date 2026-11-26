@@ -63,6 +63,7 @@ export function makeDub(overrides: Partial<DubRow> = {}): DubRow {
     srt_translated_path: null,
     started_at: null,
     completed_at: null,
+    quality: null,
     created_at: now,
     updated_at: now,
     ...overrides,

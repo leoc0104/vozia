@@ -39,6 +39,7 @@ const segment = (idx: number, start_ms: number, text: string, translated_text: s
   speaker: null,
   text,
   translated_text,
+  performance: null,
 })
 
 export const SAMPLE_SEGMENTS: DubSegmentRow[] = [

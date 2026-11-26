@@ -7,8 +7,8 @@ import { TranscriptTable } from '../TranscriptTable'
 const longSentence = `${'This is a very long sentence that keeps going without a break '.repeat(5)}end.`
 
 const segments: DubSegmentRow[] = [
-  { id: 1, dub_id: 'd1', idx: 0, start_ms: 0, end_ms: 1500, speaker: null, text: 'Hello there.', translated_text: 'Olá.' },
-  { id: 2, dub_id: 'd1', idx: 1, start_ms: 61_000, end_ms: 70_000, speaker: null, text: longSentence, translated_text: null },
+  { id: 1, dub_id: 'd1', idx: 0, start_ms: 0, end_ms: 1500, speaker: null, text: 'Hello there.', translated_text: 'Olá.', performance: null },
+  { id: 2, dub_id: 'd1', idx: 1, start_ms: 61_000, end_ms: 70_000, speaker: null, text: longSentence, translated_text: null, performance: null },
 ]
 
 describe('TranscriptTable', () => {
@@ -31,7 +31,7 @@ describe('TranscriptTable', () => {
 
   it('lets each line follow its own writing direction, so Arabic reads right to left', () => {
     const arabic: DubSegmentRow[] = [
-      { id: 3, dub_id: 'd1', idx: 0, start_ms: 0, end_ms: 1500, speaker: null, text: 'مرحبا بكم', translated_text: 'Welcome' },
+      { id: 3, dub_id: 'd1', idx: 0, start_ms: 0, end_ms: 1500, speaker: null, text: 'مرحبا بكم', translated_text: 'Welcome', performance: null },
     ]
     render(<TranscriptTable segments={arabic} sourceLabel="Arabic" targetLabel="English" />)
     expect(screen.getByRole('cell', { name: 'مرحبا بكم' })).toHaveAttribute('dir', 'auto')
@@ -69,5 +69,20 @@ describe('TranscriptTable', () => {
     render(<TranscriptTable segments={segments} sourceLabel="English" targetLabel="Portuguese" onSeek={onSeek} />)
     await userEvent.click(screen.getByRole('button', { name: 'Play from 1:01' }))
     expect(onSeek).toHaveBeenCalledWith(61_000)
+  })
+
+  it('labels lines that were re-recorded, reworded or still land off the picture, and shows the directions on hover', () => {
+    const performed = (performance: object): DubSegmentRow => ({ ...segments[0]!, performance: { spoken: '[panicked] Olá.', notes: [], sounds: [], ...performance } as never })
+    const { rerender } = render(
+      <TranscriptTable segments={[performed({ takes: 2, revised: true, worstWordMs: 420 })]} sourceLabel="English" targetLabel="Portuguese" />,
+    )
+    expect(screen.getByText('Reworded')).toBeInTheDocument()
+    expect(screen.getByText('0.4 s late')).toBeInTheDocument()
+    expect(screen.getByText('Olá.').closest('td')).toHaveAttribute('title', '[panicked] Olá.')
+    rerender(<TranscriptTable segments={[performed({ takes: 2, revised: false, worstWordMs: 40 })]} sourceLabel="English" targetLabel="Portuguese" />)
+    expect(screen.getByText('Re-taken')).toBeInTheDocument()
+    expect(screen.queryByText(/late|early/)).not.toBeInTheDocument()
+    rerender(<TranscriptTable segments={[performed({ takes: 1, revised: false, worstWordMs: 0 })]} sourceLabel="English" targetLabel="Portuguese" />)
+    expect(screen.queryByText('Re-taken')).not.toBeInTheDocument()
   })
 })

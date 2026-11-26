@@ -66,6 +66,15 @@ describe.skipIf(!url)('postgres repository and pgmq queue', () => {
     const segments = await sql`select idx, text, translated_text from public.dub_segments where dub_id = ${dubId} order by idx`
     expect(segments).toEqual([{ idx: 0, text: 'hi', translated_text: 'oi' }])
 
+    const performance = { spoken: '[happy] oi', takes: 2, revised: true, worstWordMs: 40, length: 1.1, overflowMs: 0, notes: [], sounds: ['risos'] }
+    const quality = {
+      version: 1 as const, measured: true, lines: 1, inSync: 1, worstWordMs: 40, retaken: 1, revised: 1,
+      pitchOffsetSt: 2.4, pitchCorrectedSt: -2.4, voiceMatched: true, bandwidthHz: 8807, room: false, captions: 0,
+    }
+    await repo.savePerformance(dubId, [{ idx: 0, performance }], quality)
+    expect((await sql`select performance from public.dub_segments where dub_id = ${dubId} and idx = 0`)[0]!.performance).toEqual(performance)
+    expect((await sql`select quality from public.dubs where id = ${dubId}`)[0]!.quality).toEqual(quality)
+
     await repo.markFailed(dubId, 'ingesting', 'boom')
     row = (await repo.loadJob(dubId))!
     expect(row.dub).toMatchObject({ status: 'failed', failed_stage: 'ingesting', error_message: 'boom' })

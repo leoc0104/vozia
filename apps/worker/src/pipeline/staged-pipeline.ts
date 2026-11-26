@@ -18,6 +18,7 @@ import type {
   VideoIngestor,
 } from './contracts.js'
 import { directPerformance } from './director.js'
+import { dubQuality, linePerformance } from './quality.js'
 import { PipelineError } from './errors.js'
 import { attachSounds, lineNotes, voiceAnalysisRequest, wordlessVoice } from './performance.js'
 import { dubWindows } from './speech-windows.js'
@@ -186,6 +187,14 @@ export class StagedPipeline implements DubbingPipeline {
     await this.d.storage.upload(BUCKETS.outputs, objects.audio, voicePath, 'audio/wav')
     await this.d.storage.upload(BUCKETS.outputs, objects.srtOriginal, originalSrt, 'application/x-subrip')
     await this.d.storage.upload(BUCKETS.outputs, objects.srtTranslated, translatedSrt, 'application/x-subrip')
+
+    // What the dub page shows: how each line was performed and how close the dub came to the original.
+    const lineRecords = performance.lines.map((line) => ({
+      idx: line.segment.idx,
+      performance: linePerformance(line, sounds.get(line.segment.idx) ?? []),
+    }))
+    const captions = brief?.captions.length ?? 0
+    await this.d.repo.savePerformance(dub.id, lineRecords, dubQuality(performance, lineRecords.map((l) => l.performance), matched, captions))
 
     await this.d.repo.markCompleted(dub.id, {
       outputPath: objects.output,

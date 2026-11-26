@@ -3,8 +3,9 @@ import { Link, useNavigate, useParams } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { Download, FileText, RotateCcw, Trash2 } from 'lucide-react'
 import { BUCKETS } from '@vozia/db'
-import type { DubStatus } from '@vozia/shared'
+import { readDubQuality, type DubStatus } from '@vozia/shared'
 import { ConfirmDialog } from '../components/ConfirmDialog'
+import { DubQualityPanel } from '../components/DubQualityPanel'
 import { DubPlayer, type VoiceTrack } from '../components/DubPlayer'
 import { LanguageName } from '../components/LanguageName'
 import { StageStepper } from '../components/StageStepper'
@@ -83,6 +84,7 @@ export function DubDetailPage() {
 
   const d = dub.data
   const failedWhile = d.failed_stage ? ` while ${statusLabel(d.failed_stage as DubStatus).toLowerCase()}` : ''
+  const quality = readDubQuality(d.quality)
   return (
     <div className="space-y-8">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -187,6 +189,7 @@ export function DubDetailPage() {
               </Button>
             ) : null}
           </div>
+          {quality ? <DubQualityPanel quality={quality} /> : null}
         </section>
       ) : (
         <Card>

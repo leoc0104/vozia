@@ -46,6 +46,8 @@ export type DubRow = Timestamps & {
   srt_translated_path: string | null
   started_at: string | null
   completed_at: string | null
+  /** How close the dub came to the original (a DubQuality from @vozia/shared), once it is done. */
+  quality: Json | null
 }
 
 export type DubSegmentRow = {
@@ -57,6 +59,8 @@ export type DubSegmentRow = {
   speaker: string | null
   text: string
   translated_text: string | null
+  /** How the line was performed (a LinePerformance from @vozia/shared), once the dub is done. */
+  performance: Json | null
 }
 
 type Relationship = {

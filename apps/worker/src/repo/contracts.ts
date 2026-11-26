@@ -1,4 +1,4 @@
-import type { DubStatus, Pipeline } from '@vozia/shared'
+import type { DubQuality, DubStatus, LinePerformance, Pipeline } from '@vozia/shared'
 import type { DubRow } from '@vozia/db'
 import type { DubJob, TranscriptSegment, TranslatedSegment } from '../pipeline/contracts.js'
 
@@ -34,5 +34,7 @@ export interface DubRepository {
   /** Clears a previous attempt's error fields before an interrupted dub is re-run (status is left alone). */
   prepareRerun(dubId: string): Promise<void>
   replaceSegments(dubId: string, segments: (TranscriptSegment | TranslatedSegment)[]): Promise<void>
+  /** Stores how each line was performed and how close the dub came to the original. */
+  savePerformance(dubId: string, lines: { idx: number; performance: LinePerformance }[], quality: DubQuality): Promise<void>
   updateVideoAfterIngest(videoId: string, patch: VideoIngestPatch): Promise<void>
 }

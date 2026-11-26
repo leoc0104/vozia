@@ -1,10 +1,11 @@
-import type { DubStatus, Pipeline } from '@vozia/shared'
+import type { DubQuality, DubStatus, LinePerformance, Pipeline } from '@vozia/shared'
 import type { DubRow, ProfileRow, VideoRow } from '@vozia/db'
 import type { DubJob, TranscriptSegment, TranslatedSegment } from '../pipeline/contracts.js'
 import type { DubPatch, DubRepository, MarkCompletedInput, VideoIngestPatch } from './contracts.js'
 
 export interface StoredSegment extends TranscriptSegment {
   translatedText: string | null
+  performance?: LinePerformance
 }
 
 export class InMemoryDubRepository implements DubRepository {
@@ -100,6 +101,15 @@ export class InMemoryDubRepository implements DubRepository {
         translatedText: 'translatedText' in s ? s.translatedText : null,
       })),
     )
+  }
+
+  async savePerformance(dubId: string, lines: { idx: number; performance: LinePerformance }[], quality: DubQuality): Promise<void> {
+    for (const line of lines) {
+      const segment = this.segments.get(dubId)?.find((s) => s.idx === line.idx)
+      if (segment) segment.performance = line.performance
+    }
+    const dub = this.dubs.get(dubId)
+    if (dub) this.dubs.set(dubId, { ...dub, quality: quality as unknown as DubRow['quality'] })
   }
 
   async updateVideoAfterIngest(videoId: string, patch: VideoIngestPatch): Promise<void> {

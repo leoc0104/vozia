@@ -1,9 +1,10 @@
 import { useEffect, useRef, type ReactNode } from 'react'
 import type { DubSegmentRow } from '@vozia/db'
+import { readLinePerformance, type LinePerformance } from '@vozia/shared'
 import { formatDuration } from '../lib/format'
 import { spokenIndex } from '../lib/transcript'
 import { cx, focusRing } from '../lib/utils'
-import { Card, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRoot, TableRow } from './ui'
+import { Badge, Card, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableRoot, TableRow } from './ui'
 
 export interface TranscriptTableProps {
   segments: DubSegmentRow[]
@@ -21,6 +22,31 @@ export interface TranscriptTableProps {
 }
 
 const MARKER = 'rounded-sm bg-brand-500 px-1 text-gray-950 [box-decoration-break:clone] [-webkit-box-decoration-break:clone]'
+
+/** A word tied to the picture this far off is worth pointing out. */
+const OFF_MS = 250
+
+/** What happened to a line on its way into the dub, as small labels: re-recorded, reworded, still off the picture. */
+function LineNotes({ performance }: { performance: LinePerformance }) {
+  const off = performance.worstWordMs
+  const labels = [
+    performance.revised ? { text: 'Reworded', variant: 'info' as const } : null,
+    !performance.revised && performance.takes > 1 ? { text: 'Re-taken', variant: 'neutral' as const } : null,
+    off !== null && Math.abs(off) > OFF_MS
+      ? { text: `${(Math.abs(off) / 1000).toFixed(1)} s ${off > 0 ? 'late' : 'early'}`, variant: 'warning' as const }
+      : null,
+  ].filter((label) => label !== null)
+  if (labels.length === 0) return null
+  return (
+    <span className="mt-1 flex flex-wrap gap-1">
+      {labels.map((label) => (
+        <Badge key={label.text} variant={label.variant}>
+          {label.text}
+        </Badge>
+      ))}
+    </span>
+  )
+}
 
 /** The transcript, read like a script: timecode, original and translation, with a marker on the line being heard. */
 export function TranscriptTable({
@@ -63,6 +89,7 @@ export function TranscriptTable({
               const time = formatDuration(segment.start_ms / 1000)
               const text = (content: string, column: 'source' | 'target') =>
                 isSpoken && markColumn === column ? <mark className={MARKER}>{content}</mark> : content
+              const performance = readLinePerformance(segment.performance)
               return (
                 <TableRow key={segment.id} aria-current={isSpoken ? 'true' : undefined} className="align-top">
                   <TableCell className="whitespace-nowrap font-mono text-xs text-gray-500 dark:text-gray-400">
@@ -82,12 +109,18 @@ export function TranscriptTable({
                   <TableCell dir="auto" lang={sourceLang ?? undefined} className="break-words text-base text-gray-600 dark:text-gray-400">
                     {text(segment.text, 'source')}
                   </TableCell>
-                  <TableCell dir="auto" lang={targetLang} className="break-words text-base text-gray-900 dark:text-gray-50">
+                  <TableCell
+                    dir="auto"
+                    lang={targetLang}
+                    title={performance?.spoken}
+                    className="break-words text-base text-gray-900 dark:text-gray-50"
+                  >
                     {segment.translated_text === null ? (
                       <span className="text-gray-400 dark:text-gray-400">…</span>
                     ) : (
                       text(segment.translated_text, 'target')
                     )}
+                    {performance ? <LineNotes performance={performance} /> : null}
                   </TableCell>
                 </TableRow>
               )

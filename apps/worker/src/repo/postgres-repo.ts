@@ -1,4 +1,4 @@
-import type { DubStatus, Pipeline } from '@vozia/shared'
+import type { DubQuality, DubStatus, LinePerformance, Pipeline } from '@vozia/shared'
 import type { DubRow, ProfileRow, VideoRow } from '@vozia/db'
 import type { Sql } from '../db.js'
 import type { DubJob, TranscriptSegment, TranslatedSegment } from '../pipeline/contracts.js'
@@ -85,6 +85,15 @@ export class PostgresDubRepository implements DubRepository {
       if (rows.length > 0) {
         await sql`insert into public.dub_segments ${sql(rows, 'dub_id', 'idx', 'start_ms', 'end_ms', 'speaker', 'text', 'translated_text')}`
       }
+    })
+  }
+
+  async savePerformance(dubId: string, lines: { idx: number; performance: LinePerformance }[], quality: DubQuality): Promise<void> {
+    await this.sql.begin(async (sql) => {
+      for (const line of lines) {
+        await sql`update public.dub_segments set performance = ${sql.json(line.performance as never)} where dub_id = ${dubId} and idx = ${line.idx}`
+      }
+      await sql`update public.dubs set quality = ${sql.json(quality as never)} where id = ${dubId}`
     })
   }
 
