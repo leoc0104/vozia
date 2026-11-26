@@ -99,6 +99,25 @@ export function stabilityFor(original: Delivery | undefined, previous?: { stabil
   return 0.5
 }
 
+/**
+ * How much higher (+) or lower the new voice speaks than the speaker, in semitones: the median difference line by
+ * line, over the lines the speaker said calmly when there are a few, because on those a difference is the voice and
+ * not the acting (a screamed line comes out high in any voice).
+ */
+export function cloneOffset(lines: readonly { original?: VoiceMeasure | null; dub?: VoiceMeasure | null; delivery?: Delivery }[]): number | null {
+  const differences = (pool: typeof lines) =>
+    pool
+      .map((line) => (line.original?.pitchSt != null && line.dub?.pitchSt != null ? line.dub.pitchSt - line.original.pitchSt : null))
+      .filter((d): d is number => d !== null)
+      .sort((a, b) => a - b)
+  const calm = differences(lines.filter((line) => Math.abs(line.delivery?.pitchSt ?? 99) < 2.5 && (line.delivery?.pitchRangeSt ?? 99) < 9))
+  const pool = calm.length >= 2 ? calm : differences(lines)
+  if (pool.length === 0) return null
+  const middle = pool.length >> 1
+  const median = pool.length % 2 ? pool[middle]! : (pool[middle - 1]! + pool[middle]!) / 2
+  return Math.round(median * 10) / 10
+}
+
 /** Silence between takes when they are joined for measuring: enough to keep their words apart. */
 const JOIN_GAP_MS = 600
 
@@ -172,6 +191,7 @@ export async function directPerformance(deps: DirectorDeps, input: DirectorInput
 
     // Lay the chosen takes out in order, so that no take starts before the previous one ends.
     const performed: PerformedLine[] = []
+    const pitches: Parameters<typeof cloneOffset>[0][number][] = []
     let previousEnd = 0
     for (const [i, line] of lines.entries()) {
       const all = takes.get(line.idx)!
@@ -179,6 +199,7 @@ export async function directPerformance(deps: DirectorDeps, input: DirectorInput
       const target = lineTarget(chosen.segment, input, lines, i, previousEnd)
       const alignment = alignTake(chosen.timing!, target)
       previousEnd = alignment.outEndMs
+      pitches.push({ original: input.analysis?.lines.get(line.idx), dub: chosen.measure, delivery: input.notes.get(line.idx)?.delivery })
       performed.push({
         segment: chosen.segment,
         spoken: chosen.spoken,
@@ -193,13 +214,7 @@ export async function directPerformance(deps: DirectorDeps, input: DirectorInput
     }
     const dubbedVocalsPath = await media.assembleTimeline(performed.flatMap((line) => line.pieces), input.totalDurationMs, ctx)
     ctx.progress(1)
-    const speaker = input.analysis?.usual.pitchSt ?? null
-    return {
-      dubbedVocalsPath,
-      lines: performed,
-      pitchOffsetSt: speaker !== null && usual.dub.pitchSt !== null ? Math.round((usual.dub.pitchSt - speaker) * 10) / 10 : null,
-      measured: true,
-    }
+    return { dubbedVocalsPath, lines: performed, pitchOffsetSt: cloneOffset(pitches), measured: true }
   } finally {
     await voice.close(ctx)
   }

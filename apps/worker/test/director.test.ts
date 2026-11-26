@@ -3,7 +3,7 @@ import path from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { FakeMedia, FakeSynthesizer, FakeTranscriber, FakeTranslator } from '../src/drivers/fake/index.js'
 import type { StageContext, Transcriber, TranslatedSegment, VoiceAnalysis, VoiceAnalysisRequest } from '../src/pipeline/contracts.js'
-import { directPerformance, stabilityFor, toTimeline, type DirectorInput } from '../src/pipeline/director.js'
+import { cloneOffset, directPerformance, stabilityFor, toTimeline, type DirectorInput } from '../src/pipeline/director.js'
 import { stageContext } from './helpers/factories.js'
 
 const MS_PER_WORD = 400
@@ -80,7 +80,12 @@ function inputFor(over: Partial<DirectorInput> = {}): DirectorInput {
     segments,
     notes: new Map(),
     sounds: new Map(),
-    analysis: { usual: { loudnessDb: -13, pitchSt: 13 }, lines: new Map(), sounds: [], envelope: { stepMs: 10, db: [] } },
+    analysis: {
+      usual: { loudnessDb: -13, pitchSt: 13 },
+      lines: new Map([0, 1].map((idx) => [idx, { loudnessDb: -13, pitchSt: 13, rangeSt: 5, peakSt: 16, endingSt: 0, voiced: 0.9 }])),
+      sounds: [],
+      envelope: { stepMs: 10, db: [] },
+    },
     cutsMs: [],
     vocalsPath: '/w/vocals.wav',
     voiceMode: 'clone',
@@ -166,5 +171,21 @@ describe('stabilityFor', () => {
     expect(stabilityFor({ pitchRangeSt: 2.4 }, { stability: 0.75, direction: 'calmer' })).toBe(0.9)
     expect(stabilityFor({ pitchRangeSt: 15 }, { stability: 0.35, direction: 'livelier' })).toBe(0.2)
     expect(stabilityFor({}, { stability: 0.5 })).toBe(0.5)
+  })
+})
+
+describe('cloneOffset', () => {
+  const m = (pitchSt: number | null) => ({ loudnessDb: -13, pitchSt, rangeSt: 5, peakSt: 16, endingSt: 0, voiced: 0.9 })
+  it("compares the voices on the speaker's calm lines, where a difference is the voice and not the acting", () => {
+    const lines = [
+      { original: m(13), dub: m(14), delivery: { pitchSt: 0, pitchRangeSt: 5 } },
+      { original: m(12), dub: m(13), delivery: { pitchSt: -1, pitchRangeSt: 3 } },
+      // Screamed lines come out far higher in the dub: acting, left out while there are calm lines.
+      { original: m(24), dub: m(33), delivery: { pitchSt: 11, pitchRangeSt: 15 } },
+      { original: m(20), dub: m(29), delivery: { pitchSt: 7, pitchRangeSt: 12 } },
+    ]
+    expect(cloneOffset(lines)).toBe(1)
+    expect(cloneOffset(lines.slice(1))).toBe(9)
+    expect(cloneOffset([{ original: m(null), dub: m(14) }])).toBeNull()
   })
 })
