@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { createJobContext } from '../src/pipeline/context.js'
-import { StagedPipeline, matchVoiceLevel, type StagedPipelineDeps } from '../src/pipeline/staged-pipeline.js'
+import { StagedPipeline, matchVoiceLevel, pitchCorrection, type StagedPipelineDeps } from '../src/pipeline/staged-pipeline.js'
 import { InMemoryDubRepository } from '../src/repo/memory-repo.js'
 import {
   FakeIngestor,
@@ -187,5 +187,14 @@ describe('matchVoiceLevel', () => {
     expect(matchVoiceLevel(-5, -40)).toBe(10)
     expect(matchVoiceLevel(null, -16)).toBe(0)
     expect(matchVoiceLevel(-12, null)).toBe(0)
+  })
+})
+
+describe('pitchCorrection', () => {
+  it("moves a clone that drifted back to the speaker's pitch, within limits", () => {
+    expect(pitchCorrection(2.4)).toBe(-2.4)
+    expect(pitchCorrection(-5)).toBe(3)
+    expect(pitchCorrection(1)).toBe(0)
+    expect(pitchCorrection(null)).toBe(0)
   })
 })

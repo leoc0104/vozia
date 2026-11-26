@@ -310,4 +310,93 @@ describe('FfmpegMediaProcessor.buildDubBackground', () => {
     expect(filter).toContain("volume='1-0':eval=frame[original]")
     expect(filter).toContain("volume='0':eval=frame[background]")
   })
+
+  it("carries the voice track's own noise into the windows when it has the voice track", async () => {
+    const { runner, calls } = createRecordingRunner()
+    const media = new FfmpegMediaProcessor({ run: runner, pythonPath: '/py', noiseFillScript: '/s/noise_fill.py' })
+    const ctx = await stageContext()
+    const speech = [{ startMs: 900, endMs: 2150 }]
+    const busy = [{ startMs: 1000, endMs: 2000 }]
+    await media.buildDubBackground({ originalPath: '/a/o.wav', backgroundPath: '/a/b.wav', speech, vocalsPath: '/a/v.wav', busy }, ctx)
+    const request = path.join(ctx.workdir, 'noise_fill.json')
+    const fill = path.join(ctx.workdir, 'room_fill.wav')
+    expect(calls[0]).toEqual({ cmd: '/py', args: ['/s/noise_fill.py', '/a/o.wav', '/a/b.wav', '/a/v.wav', request, fill], cwd: ctx.workdir })
+    expect(JSON.parse(await readFile(request, 'utf8'))).toEqual({ windows: [[900, 2150]], busy: [[1000, 2000]] })
+    expect(calls[1]!.args.slice(0, 7)).toEqual(['-y', '-i', '/a/o.wav', '-i', '/a/b.wav', '-i', fill])
+  })
+})
+
+describe('FfmpegMediaProcessor.matchVoice', () => {
+  const input = {
+    originalVocalsPath: '/a/v.wav',
+    originalSpeech: [{ startMs: 1000, endMs: 2000 }],
+    dubVocalsPath: '/a/dub.wav',
+    dubSpeech: [{ startMs: 1050, endMs: 2100 }],
+  }
+  const report = { eq: { '1000': 0.2, '12000': -40 }, bandwidthHz: 8807, room: null, dropOriginalDb: 18.4, dropDubDb: 19.2 }
+  const scripted = () =>
+    createRecordingRunner((cmd, args) => {
+      if (cmd === '/py') writeFileSync(args[5]!, JSON.stringify(report))
+      return {}
+    })
+
+  it('matches the tone, range and room of the original recording, and moves the pitch first when asked', async () => {
+    const { runner, calls } = scripted()
+    const ctx = await stageContext()
+    const media = new FfmpegMediaProcessor({ run: runner, pythonPath: '/py', voiceMatchScript: '/s/voice_match.py' })
+    const matched = await media.matchVoice({ ...input, pitchShiftSt: -2.4 }, ctx)
+    const pitched = path.join(ctx.workdir, 'dubbed_vocals_pitched.wav')
+    expect(calls[0]!.args).toEqual(['-y', '-i', '/a/dub.wav', '-af', 'rubberband=pitch=0.8706:formant=preserved:pitchq=quality', '-c:a', 'pcm_s16le', pitched])
+    const spans = path.join(ctx.workdir, 'voice_match_spans.json')
+    const out = path.join(ctx.workdir, 'dubbed_vocals_matched.wav')
+    expect(calls[1]).toEqual({ cmd: '/py', args: ['/s/voice_match.py', '/a/v.wav', pitched, spans, out, path.join(ctx.workdir, 'voice_match.json')], cwd: ctx.workdir })
+    expect(JSON.parse(await readFile(spans, 'utf8'))).toEqual({ original: [[1000, 2000]], dub: [[1050, 2100]] })
+    expect(matched).toEqual({ path: out, report: { eq: report.eq, bandwidthHz: 8807, room: null, pitchShiftSt: -2.4 } })
+  })
+
+  it('leaves the pitch alone when it is close, and keeps the voice as it is when matching fails', async () => {
+    const { runner, calls } = scripted()
+    const ctx = await stageContext()
+    await new FfmpegMediaProcessor({ run: runner, pythonPath: '/py' }).matchVoice({ ...input, pitchShiftSt: 0.1 }, ctx)
+    expect(calls[0]!.cmd).toBe('/py')
+
+    const failing = createRecordingRunner(() => ({ fail: 'boom' })).runner
+    const warn = vi.spyOn(ctx.log, 'warn')
+    expect(await new FfmpegMediaProcessor({ run: failing, pythonPath: '/py' }).matchVoice(input, ctx)).toBeNull()
+    expect(await new FfmpegMediaProcessor({ run: failing }).matchVoice(input, ctx)).toBeNull()
+    expect(warn).toHaveBeenCalledOnce()
+  })
+})
+
+describe('FfmpegMediaProcessor.mux with captions', () => {
+  const tracks = { videoPath: '/v.mp4', backgroundPath: '/bg.wav', dubbedVocalsPath: '/dub.wav' }
+  const caption = { startMs: 10_230, endMs: 12_276, text: 'Nem tamo em casa', translation: "We're not even home" }
+
+  it('draws translated captions where the original text was on screen, re-encoding the picture only then', async () => {
+    const { runner, calls } = createRecordingRunner()
+    const ctx = await stageContext()
+    const font = path.join(ctx.workdir, 'font.ttf')
+    await writeFile(font, 'font')
+    await new FfmpegMediaProcessor({ run: runner, captionFont: font }).mux({ ...tracks, captions: [caption] }, ctx)
+    const args = calls[0]!.args
+    const graph = args[args.indexOf('-filter_complex') + 1]!
+    expect(graph).toMatch(/^\[0:v\]drawtext=fontfile='.+font\.ttf':textfile='.+caption-0\.txt':expansion=none:/)
+    expect(graph).toContain(":enable='between(t,10.230,12.276)'[v];[1:a][2:a]amix")
+    expect(await readFile(path.join(ctx.workdir, 'caption-0.txt'), 'utf8')).toBe("We're not even home")
+    expect(args).toEqual(expect.arrayContaining(['-map', '[v]', '-c:v', 'libx264', '-crf', '18']))
+  })
+
+  it('keeps the picture untouched without captions, without the font, or for a script the font cannot draw', async () => {
+    const ctx = await stageContext()
+    const run = async (captions: (typeof caption)[], captionFont?: string) => {
+      const { runner, calls } = createRecordingRunner()
+      await new FfmpegMediaProcessor({ run: runner, captionFont }).mux({ ...tracks, captions }, ctx)
+      return calls[0]!.args
+    }
+    expect(await run([])).toEqual(expect.arrayContaining(['-c:v', 'copy', '-map', '0:v:0']))
+    expect(await run([caption], '/missing/font.ttf')).toEqual(expect.arrayContaining(['-c:v', 'copy']))
+    const font = path.join(ctx.workdir, 'font.ttf')
+    await writeFile(font, 'font')
+    expect(await run([{ ...caption, translation: '家にいない' }], font)).toEqual(expect.arrayContaining(['-c:v', 'copy']))
+  })
 })

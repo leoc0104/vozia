@@ -1,12 +1,15 @@
 import { copyFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import type {
+  Caption,
+  DubBackgroundInput,
   Frame,
   MediaProcessor,
   Piece,
   StageContext,
   VoiceAnalysis,
   VoiceAnalysisRequest,
+  VoiceMatchReport,
 } from '../../pipeline/contracts.js'
 import type { TimeWindow } from '../../pipeline/speech-windows.js'
 
@@ -53,10 +56,7 @@ export class FakeMedia implements MediaProcessor {
     return []
   }
 
-  async buildDubBackground(
-    input: { originalPath: string; backgroundPath: string; speech: TimeWindow[] },
-    ctx: StageContext,
-  ): Promise<string> {
+  async buildDubBackground(input: DubBackgroundInput, ctx: StageContext): Promise<string> {
     const out = path.join(ctx.workdir, 'background_blended.wav')
     await writeFile(out, `fake background, original audio outside ${input.speech.length} speech windows\n`)
     return out
@@ -81,12 +81,16 @@ export class FakeMedia implements MediaProcessor {
     return out
   }
 
+  async matchVoice(): Promise<{ path: string; report: VoiceMatchReport } | null> {
+    return null
+  }
+
   async loudness(_path: string, _ctx: StageContext): Promise<number | null> {
     return null
   }
 
   async mux(
-    input: { videoPath: string; backgroundPath: string; dubbedVocalsPath: string; voiceGainDb?: number },
+    input: { videoPath: string; backgroundPath: string; dubbedVocalsPath: string; voiceGainDb?: number; captions?: Caption[] },
     ctx: StageContext,
   ): Promise<{ outputPath: string }> {
     const outputPath = path.join(ctx.workdir, 'dubbed.mp4')

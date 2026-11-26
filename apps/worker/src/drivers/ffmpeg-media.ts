@@ -1,13 +1,16 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { access, mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type {
+  Caption,
+  DubBackgroundInput,
   Frame,
   MediaProcessor,
   Piece,
   StageContext,
   VoiceAnalysis,
   VoiceAnalysisRequest,
+  VoiceMatchReport,
   VoiceMeasure,
   VoiceSound,
 } from '../pipeline/contracts.js'
@@ -22,12 +25,20 @@ export interface FfmpegOptions {
   /** Python with numpy, for the noise floor under the dub and the voice analysis. Without it the dub skips both. */
   pythonPath?: string
   roomToneScript?: string
+  noiseFillScript?: string
   voiceAnalysisScript?: string
+  voiceMatchScript?: string
+  /** The font captions are drawn with; without it, captions are left out. */
+  captionFont?: string
 }
 
 /** apps/worker/scripts/*.py, from src/drivers or dist/drivers alike. */
 const ROOM_TONE_SCRIPT = fileURLToPath(new URL('../../scripts/room_tone.py', import.meta.url))
 const VOICE_ANALYSIS_SCRIPT = fileURLToPath(new URL('../../scripts/voice_analysis.py', import.meta.url))
+const NOISE_FILL_SCRIPT = fileURLToPath(new URL('../../scripts/noise_fill.py', import.meta.url))
+const VOICE_MATCH_SCRIPT = fileURLToPath(new URL('../../scripts/voice_match.py', import.meta.url))
+/** Installed with ffmpeg in the worker images (fonts-dejavu-core). */
+const CAPTION_FONT = '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf'
 
 /** How different two frames must be to count as a cut (ffmpeg's scene score, 0 to 1). */
 const SCENE_CUT = 0.25
@@ -302,13 +313,10 @@ export class FfmpegMediaProcessor implements MediaProcessor {
     return frames
   }
 
-  async buildDubBackground(
-    input: { originalPath: string; backgroundPath: string; speech: TimeWindow[] },
-    ctx: StageContext,
-  ): Promise<string> {
+  async buildDubBackground(input: DubBackgroundInput, ctx: StageContext): Promise<string> {
     const out = path.join(ctx.workdir, 'background_blended.wav')
     const filterPath = path.join(ctx.workdir, 'blend.filter')
-    const roomTone = await this.roomTone(input, ctx)
+    const roomTone = await this.roomLayer(input, ctx)
     const speaking = speakingExpression(input.speech, BLEND_FADE_MS)
     // While someone speaks: the separated background, plus the recreated noise floor when there is one.
     const underSpeech = roomTone ? '[1:a][2:a]amix=inputs=2:normalize=0:duration=first,' : '[1:a]'
@@ -332,18 +340,28 @@ export class FfmpegMediaProcessor implements MediaProcessor {
   }
 
   /**
-   * Steady noise matching the original's floor while someone speaks (scripts/room_tone.py), or null. It is an
+   * The room under the dub while someone speaks, or null: the voice track's own noise carried into each window
+   * (scripts/noise_fill.py) when the voice track is given, else steady noise matching the original's floor
+   * (scripts/room_tone.py). It is an
    * improvement, not a requirement: without Python, or if the script fails, the dub goes on without it.
    */
-  private async roomTone(
-    input: { originalPath: string; backgroundPath: string; speech: TimeWindow[] },
-    ctx: StageContext,
-  ): Promise<string | null> {
+  private async roomLayer(input: DubBackgroundInput, ctx: StageContext): Promise<string | null> {
     if (!this.opts.pythonPath || input.speech.length === 0) return null
-    const windowsPath = path.join(ctx.workdir, 'speech_windows.json')
-    const out = path.join(ctx.workdir, 'room_tone.wav')
-    await writeFile(windowsPath, JSON.stringify(input.speech))
     try {
+      if (input.vocalsPath && input.busy) {
+        const request = path.join(ctx.workdir, 'noise_fill.json')
+        const out = path.join(ctx.workdir, 'room_fill.wav')
+        await writeFile(request, JSON.stringify({ windows: pairs(input.speech), busy: pairs(input.busy) }))
+        await this.opts.run(
+          this.opts.pythonPath,
+          [this.opts.noiseFillScript ?? NOISE_FILL_SCRIPT, input.originalPath, input.backgroundPath, input.vocalsPath, request, out],
+          { cwd: ctx.workdir, signal: ctx.signal },
+        )
+        return out
+      }
+      const windowsPath = path.join(ctx.workdir, 'speech_windows.json')
+      const out = path.join(ctx.workdir, 'room_tone.wav')
+      await writeFile(windowsPath, JSON.stringify(input.speech))
       await this.opts.run(
         this.opts.pythonPath,
         [this.opts.roomToneScript ?? ROOM_TONE_SCRIPT, input.originalPath, input.backgroundPath, windowsPath, out],
@@ -377,23 +395,70 @@ export class FfmpegMediaProcessor implements MediaProcessor {
     return Number.isFinite(lufs) && lufs > -70 ? lufs : null
   }
 
+  /** An improvement, never a requirement: when it fails, the dub keeps the voice as it is. */
+  async matchVoice(
+    input: { originalVocalsPath: string; originalSpeech: TimeWindow[]; dubVocalsPath: string; dubSpeech: TimeWindow[]; pitchShiftSt?: number },
+    ctx: StageContext,
+  ): Promise<{ path: string; report: VoiceMatchReport } | null> {
+    let voice = input.dubVocalsPath
+    let pitchShiftSt = 0
+    if (input.pitchShiftSt && Math.abs(input.pitchShiftSt) >= 0.25) {
+      const shifted = path.join(ctx.workdir, 'dubbed_vocals_pitched.wav')
+      const ratio = (2 ** (input.pitchShiftSt / 12)).toFixed(4)
+      try {
+        // Formants preserved: the voice moves to the speaker's pitch without sounding like a different size of person.
+        await this.opts.run(
+          this.ffmpeg,
+          ['-y', '-i', voice, '-af', `rubberband=pitch=${ratio}:formant=preserved:pitchq=quality`, '-c:a', 'pcm_s16le', shifted],
+          { cwd: ctx.workdir, signal: ctx.signal },
+        )
+        voice = shifted
+        pitchShiftSt = input.pitchShiftSt
+      } catch (error) {
+        if (ctx.signal.aborted) throw error
+        ctx.log.warn({ error }, 'pitch not corrected: the new voice keeps its own pitch')
+      }
+    }
+    const unmatched = pitchShiftSt !== 0 ? { path: voice, report: { eq: null, bandwidthHz: null, room: null, pitchShiftSt } } : null
+    if (!this.opts.pythonPath || input.originalSpeech.length === 0 || input.dubSpeech.length === 0) return unmatched
+    const spans = path.join(ctx.workdir, 'voice_match_spans.json')
+    const out = path.join(ctx.workdir, 'dubbed_vocals_matched.wav')
+    const reportPath = path.join(ctx.workdir, 'voice_match.json')
+    await writeFile(spans, JSON.stringify({ original: pairs(input.originalSpeech), dub: pairs(input.dubSpeech) }))
+    try {
+      await this.opts.run(
+        this.opts.pythonPath,
+        [this.opts.voiceMatchScript ?? VOICE_MATCH_SCRIPT, input.originalVocalsPath, voice, spans, out, reportPath],
+        { cwd: ctx.workdir, signal: ctx.signal },
+      )
+      const report = JSON.parse(await readFile(reportPath, 'utf8')) as Omit<VoiceMatchReport, 'pitchShiftSt'>
+      return { path: out, report: { eq: report.eq, bandwidthHz: report.bandwidthHz, room: report.room, pitchShiftSt } }
+    } catch (error) {
+      if (ctx.signal.aborted) throw error
+      ctx.log.warn({ error }, 'voice not matched to the original recording: the new voice keeps its own sound')
+      return unmatched
+    }
+  }
+
   async mux(
-    input: { videoPath: string; backgroundPath: string; dubbedVocalsPath: string; voiceGainDb?: number },
+    input: { videoPath: string; backgroundPath: string; dubbedVocalsPath: string; voiceGainDb?: number; captions?: Caption[] },
     ctx: StageContext,
   ): Promise<{ outputPath: string }> {
     const outputPath = path.join(ctx.workdir, 'dubbed.mp4')
     const gain = input.voiceGainDb ?? 0
     const tracks = gain === 0 ? '[1:a][2:a]' : `[2:a]volume=${gain}dB[voice];[1:a][voice]`
+    // Both tracks keep their own level; the limiter only catches peaks where the new voice lands on loud music,
+    // without raising the overall level (level=false) or shifting the audio against the picture (latency=true).
+    const audio = `${tracks}amix=inputs=2:normalize=0:duration=first,alimiter=limit=0.95:level=false:latency=true[a]`
+    const picture = await this.captionFilter(input.captions ?? [], ctx)
     await this.exec(
       this.ffmpeg,
       [
         '-y', '-i', input.videoPath, '-i', input.backgroundPath, '-i', input.dubbedVocalsPath,
-        // Both tracks keep their own level; the limiter only catches peaks where the new voice lands on loud music,
-        // without raising the overall level (level=false) or shifting the audio against the picture (latency=true).
-        '-filter_complex',
-        `${tracks}amix=inputs=2:normalize=0:duration=first,alimiter=limit=0.95:level=false:latency=true[a]`,
-        '-map', '0:v:0', '-map', '[a]',
-        '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart',
+        '-filter_complex', picture ? `${picture};${audio}` : audio,
+        '-map', picture ? '[v]' : '0:v:0', '-map', '[a]',
+        ...(picture ? ['-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18', '-pix_fmt', 'yuv420p'] : ['-c:v', 'copy']),
+        '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart',
         outputPath,
       ],
       ctx,
@@ -401,4 +466,46 @@ export class FfmpegMediaProcessor implements MediaProcessor {
     )
     return { outputPath }
   }
+
+  /**
+   * Draws translated captions near the top of the picture while the original text is on screen, as fansubs
+   * translate signs. Null when there is nothing to draw, no font, or a script the font cannot show.
+   */
+  private async captionFilter(captions: Caption[], ctx: StageContext): Promise<string | null> {
+    const font = this.opts.captionFont ?? CAPTION_FONT
+    const shown = captions.filter((c) => c.endMs > c.startMs && c.translation.trim() !== '')
+    if (shown.length === 0) return null
+    if (!(await access(font).then(() => true, () => false))) {
+      ctx.log.warn({ font }, 'captions left out: their font is missing')
+      return null
+    }
+    const drawable = shown.filter((c) => DRAWABLE.test(c.translation))
+    if (drawable.length < shown.length) ctx.log.warn({ skipped: shown.length - drawable.length }, 'captions in a script the font cannot show were left out')
+    if (drawable.length === 0) return null
+    const filters: string[] = []
+    for (const [k, caption] of drawable.entries()) {
+      const file = path.join(ctx.workdir, `caption-${k}.txt`)
+      await writeFile(file, wrap(caption.translation.trim(), 28))
+      filters.push(
+        `drawtext=fontfile='${font}':textfile='${file}':expansion=none:fontsize=h/18:line_spacing=6:fontcolor=white` +
+          `:box=1:boxcolor=black@0.55:boxborderw=14:x=(w-text_w)/2:y=h*0.06` +
+          `:enable='between(t,${seconds(caption.startMs)},${seconds(caption.endMs)})'`,
+      )
+    }
+    return `[0:v]${filters.join(',')}[v]`
+  }
+}
+
+/** Latin, Greek and Cyrillic, which the caption font covers, with digits, punctuation and symbols. */
+const DRAWABLE = /^[\p{Script=Latin}\p{Script=Greek}\p{Script=Cyrillic}\p{N}\p{P}\p{S}\s]*$/u
+
+/** Breaks text into lines of about `width` characters, at spaces. */
+function wrap(text: string, width: number): string {
+  const lines: string[] = []
+  for (const word of text.split(/\s+/)) {
+    const last = lines.at(-1)
+    if (last !== undefined && last.length + 1 + word.length <= width) lines[lines.length - 1] = `${last} ${word}`
+    else lines.push(word)
+  }
+  return lines.join('\n')
 }

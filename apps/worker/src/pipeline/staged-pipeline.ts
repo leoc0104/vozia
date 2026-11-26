@@ -19,8 +19,8 @@ import type {
 } from './contracts.js'
 import { directPerformance } from './director.js'
 import { PipelineError } from './errors.js'
-import { attachSounds, lineNotes, performedTiming, voiceAnalysisRequest, wordlessVoice } from './performance.js'
-import { speechWindows } from './speech-windows.js'
+import { attachSounds, lineNotes, voiceAnalysisRequest, wordlessVoice } from './performance.js'
+import { dubWindows } from './speech-windows.js'
 import { MAX_FRAMES, frameTimes } from './watching.js'
 
 /** How many lines the translator watches together, each group with up to MAX_FRAMES frames. */
@@ -28,6 +28,16 @@ const LINES_PER_LOOK = 40
 
 /** The most the new voice is raised or lowered to match the original, so a bad measurement cannot ruin the mix. */
 export const MAX_VOICE_GAIN_DB = 10
+
+/** A clone this far from the speaker's usual pitch, or farther, is moved back to it; at most MAX_PITCH_FIX_ST. */
+export const PITCH_FIX_FROM_ST = 1.5
+export const MAX_PITCH_FIX_ST = 3
+
+/** How far to move the new voice's pitch so it speaks at the speaker's usual pitch; 0 when close enough or unknown. */
+export function pitchCorrection(offsetSt: number | null): number {
+  if (offsetSt === null || Math.abs(offsetSt) < PITCH_FIX_FROM_ST) return 0
+  return Math.round(-Math.max(-MAX_PITCH_FIX_ST, Math.min(MAX_PITCH_FIX_ST, offsetSt)) * 10) / 10
+}
 
 /** The gain that brings the new voice to the original voice's loudness (both in LUFS); 0 when either is unknown. */
 export function matchVoiceLevel(originalLufs: number | null, dubbedLufs: number | null): number {
@@ -123,22 +133,41 @@ export class StagedPipeline implements DubbingPipeline {
     if (performance.lines.some((line) => line.revised)) await this.d.repo.replaceSegments(dub.id, final)
 
     await ctx.setStage('muxing')
+    const originalWords = transcript.segments.flatMap((s) => (s.words?.length ? s.words : [s]).map(({ startMs, endMs }) => ({ startMs, endMs })))
+    // The new voice made to sound recorded where the original was, at the speaker's own pitch.
+    const matched = await this.d.media.matchVoice(
+      {
+        originalVocalsPath: vocalsPath,
+        originalSpeech: originalWords,
+        dubVocalsPath: dubbedVocalsPath,
+        dubSpeech: performance.lines.flatMap((line) =>
+          line.pieces.map((p) => ({ startMs: p.outStartMs, endMs: Math.round(p.outStartMs + (p.toMs - p.fromMs) / p.tempo) })),
+        ),
+        pitchShiftSt: pitchCorrection(performance.pitchOffsetSt),
+      },
+      ctx,
+    )
+    const voicePath = matched?.path ?? dubbedVocalsPath
     // Between lines the original audio plays untouched, so sounds there survive even when the separator files them
-    // under the voice; while someone speaks, the separated background and the recreated noise floor carry the room.
-    // The windows follow the performed lines, so a laugh the new voice performs is not also heard from the original.
-    const performed = this.d.synthesizer.performsDirections ? performedTiming(final, sounds) : final
+    // under the voice. The original voice gives way only over its words, and over the sounds the new voice
+    // re-performs while it performs them; there, the separated background and the voice track's own noise carry the
+    // room.
+    const performedSounds = performance.lines.flatMap((line) =>
+      (sounds.get(line.segment.idx) ?? [])
+        .filter((sound) => this.d.synthesizer.performsDirections && line.segment.performedSounds?.includes(sound.id))
+        .map((sound) => ({ original: { startMs: sound.startMs, endMs: sound.endMs }, dub: performance.measured ? line.soundSpans : null })),
+    )
+    const windows = dubWindows({ words: originalWords, performed: performedSounds, totalMs: totalDurationMs, envelope: analysis?.envelope })
+    const busy = [...originalWords, ...[...tagged, ...wordlessVoice(analysis)].map(({ startMs, endMs }) => ({ startMs, endMs }))]
     const bedPath = await this.d.media.buildDubBackground(
-      { originalPath: ingest.audioPath, backgroundPath, speech: speechWindows(performed, totalDurationMs) },
+      { originalPath: ingest.audioPath, backgroundPath, speech: windows, vocalsPath, busy },
       ctx,
     )
     // The new voice speaks as loud as the speaker did. One gain for the whole track keeps the performance's own
     // rises and falls; the limiter in the mux catches any peak.
-    const voiceGainDb = matchVoiceLevel(
-      await this.d.media.loudness(vocalsPath, ctx),
-      await this.d.media.loudness(dubbedVocalsPath, ctx),
-    )
+    const voiceGainDb = matchVoiceLevel(await this.d.media.loudness(vocalsPath, ctx), await this.d.media.loudness(voicePath, ctx))
     const { outputPath } = await this.d.media.mux(
-      { videoPath: ingest.videoPath, backgroundPath: bedPath, dubbedVocalsPath, voiceGainDb },
+      { videoPath: ingest.videoPath, backgroundPath: bedPath, dubbedVocalsPath: voicePath, voiceGainDb, captions: brief?.captions ?? [] },
       ctx,
     )
     const originalSrt = path.join(ctx.workdir, 'original.srt')
@@ -154,7 +183,7 @@ export class StagedPipeline implements DubbingPipeline {
       srtTranslated: outputObjectPath(owner, dub.id, 'translated.srt'),
     }
     await this.d.storage.upload(BUCKETS.outputs, objects.output, outputPath, 'video/mp4')
-    await this.d.storage.upload(BUCKETS.outputs, objects.audio, dubbedVocalsPath, 'audio/wav')
+    await this.d.storage.upload(BUCKETS.outputs, objects.audio, voicePath, 'audio/wav')
     await this.d.storage.upload(BUCKETS.outputs, objects.srtOriginal, originalSrt, 'application/x-subrip')
     await this.d.storage.upload(BUCKETS.outputs, objects.srtTranslated, translatedSrt, 'application/x-subrip')
 

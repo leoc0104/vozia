@@ -290,10 +290,16 @@ export interface MediaProcessor {
    * The bed under the dub: the original audio outside `speech`; inside it, the separated background plus the
    * original's steady noise floor, so the room keeps sounding the same while the new voice speaks. Short fades.
    */
-  buildDubBackground(
-    input: { originalPath: string; backgroundPath: string; speech: TimeWindow[] },
+  buildDubBackground(input: DubBackgroundInput, ctx: StageContext): Promise<string>
+  /**
+   * The dubbed voice made to sound recorded where the original was: its tone and frequency range matched to the
+   * original voice, a matching room when the original rings on, and its pitch moved by `pitchShiftSt` (a clone that
+   * speaks higher or lower than the speaker). Null when it cannot be done: the dub keeps the voice as it is.
+   */
+  matchVoice(
+    input: { originalVocalsPath: string; originalSpeech: TimeWindow[]; dubVocalsPath: string; dubSpeech: TimeWindow[]; pitchShiftSt?: number },
     ctx: StageContext,
-  ): Promise<string>
+  ): Promise<{ path: string; report: VoiceMatchReport } | null>
   /** Joins stretches of one file into a short MP3 with brief pauses between them, like a voice sample to clone. */
   joinSpans(inputPath: string, spans: TimeWindow[], ctx: StageContext): Promise<string>
   /**
@@ -305,11 +311,34 @@ export interface MediaProcessor {
   assembleTimeline(pieces: Piece[], totalDurationMs: number, ctx: StageContext): Promise<string>
   /** Integrated loudness (EBU R128) in LUFS, which ignores silence between lines; null for silence or on failure. */
   loudness(path: string, ctx: StageContext): Promise<number | null>
-  /** `voiceGainDb` raises or lowers the new voice, so it can speak as loud as the original speaker did. */
+  /**
+   * `voiceGainDb` raises or lowers the new voice, so it can speak as loud as the original speaker did; `captions`
+   * are drawn over the picture while they are on screen (the video is re-encoded only then).
+   */
   mux(
-    input: { videoPath: string; backgroundPath: string; dubbedVocalsPath: string; voiceGainDb?: number },
+    input: { videoPath: string; backgroundPath: string; dubbedVocalsPath: string; voiceGainDb?: number; captions?: Caption[] },
     ctx: StageContext,
   ): Promise<{ outputPath: string }>
+}
+
+export interface DubBackgroundInput {
+  originalPath: string
+  backgroundPath: string
+  /** Where the original voice gives way to the dub. */
+  speech: TimeWindow[]
+  /** The separated voice track and where its words and voice sounds are, to carry its own noise into `speech`. */
+  vocalsPath?: string
+  busy?: TimeWindow[]
+}
+
+/** What matching the dubbed voice to the original did. */
+export interface VoiceMatchReport {
+  /** The tone change at a few frequencies, in dB. */
+  eq: Record<string, number> | null
+  /** The original's highest useful frequency, above which the dub was cut. */
+  bandwidthHz: number | null
+  room: { decaySec: number; wetDb: number; dropAfterDb: number } | null
+  pitchShiftSt: number
 }
 
 export interface ObjectStorage {
