@@ -263,7 +263,7 @@ export class StagedPipeline implements DubbingPipeline {
         )
       : []
     const segments = state.segments.map((s) => (s.idx === retake.idx ? (directed ?? words) : s))
-    const performance = await directPerformance(
+    const retaken = await directPerformance(
       this.d,
       {
         segments,
@@ -284,6 +284,8 @@ export class StagedPipeline implements DubbingPipeline {
       },
       ctx,
     )
+    // The voice is the one the whole dub was measured with: one re-taken line says little about its pitch.
+    const performance = { ...retaken, pitchOffsetSt: state.pitchOffsetSt ?? null }
     const final = segments.map((s) => performance.lines.find((line) => line.segment.idx === s.idx)?.segment ?? s)
     await this.mixAndPublish(
       {
@@ -406,6 +408,7 @@ export class StagedPipeline implements DubbingPipeline {
         cutsMs: m.cutsMs,
         brief: briefToWorkspace(m.brief),
         pitchShiftSt: m.pitchShiftSt,
+        pitchOffsetSt: m.performance.pitchOffsetSt,
         hasSample: m.keepSample ? Boolean(m.performance.samplePath) : true,
         lines: m.performance.lines.map(toWorkspaceLine),
       }

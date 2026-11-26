@@ -1,3 +1,5 @@
+import { readFile, writeFile } from 'node:fs/promises'
+import path from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import type { DubRetakeRow } from '@vozia/db'
 import {
@@ -76,6 +78,14 @@ describe('StagedPipeline.retake', () => {
     expect(segments[0]!.translatedText).toBe('[pt] Hello there.')
     expect(await storage.list('outputs')).toContain(`${OWNER_ID}/${DUB_ID}/work/takes/1.mp3`)
     expect(repo.dubs.get(DUB_ID)?.status).toBe('completed')
+  })
+
+  it("keeps the whole dub's measure of the voice's pitch: one re-taken line says little about it", async () => {
+    const { repo, storage, pipeline, job } = await dubbed()
+    const state = path.join(storage.rootDir, 'outputs', OWNER_ID, DUB_ID, 'work', 'state.json')
+    await writeFile(state, JSON.stringify({ ...JSON.parse(await readFile(state, 'utf8')), pitchOffsetSt: 0.4 }))
+    await pipeline.retake(job, retakeRow(), await stageContext())
+    expect(repo.dubs.get(DUB_ID)?.quality).toMatchObject({ pitchOffsetSt: 0.4 })
   })
 
   it('explains when a dub was made before lines could be re-taken', async () => {

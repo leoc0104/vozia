@@ -38,6 +38,8 @@ export interface DubWorkspace {
   brief: { summary: string; glossary: VideoBrief['glossary']; onScreen: [number, string][]; captions: Caption[] } | null
   /** The pitch correction applied to the voice, kept so a re-take sounds the same. */
   pitchShiftSt: number
+  /** The clone's pitch against the speaker's, measured over the whole dub (a re-take measures only its line). */
+  pitchOffsetSt?: number | null
   hasSample: boolean
   lines: WorkspaceLine[]
 }
